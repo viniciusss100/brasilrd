@@ -1,0 +1,9 @@
+storage/
+release/
+data/
+logs/
+screenshots/
+puppeteer-profile/
+scripts/
+.github/
+*.md
