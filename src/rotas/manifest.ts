@@ -1,4 +1,4 @@
-// Manifest do Addon Brasil RD
+// Manifest do Addon brasilrd
 // Versao sincronizada automaticamente com package.json
 
 import { version as versaoProjeto } from '../../package.json';
@@ -9,7 +9,7 @@ export const manifest = {
     version: versaoProjeto,
     
     // Informações básicas
-    name: 'Brasil RD',
+    name: 'brasilrd',
     description: 'Addon brasileiro com suporte ao Torbox',
     
     // Imagens
@@ -56,4 +56,4 @@ export const manifest = {
 };
 
 // Log para debug - versão atual
-console.log('[Manifest] Brasil RD v1.0.1 - configurationRequired: false (Web Fix)');
+console.log('[Manifest] brasilrd v1.0.1 - configurationRequired: false (Web Fix)');
