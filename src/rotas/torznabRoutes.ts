@@ -70,7 +70,38 @@ export function setupTorznabRoutes(app: any): void {
 
     const query = String(req.query.q || req.query.query || '').trim();
     if (!query) {
-      return res.send(xml('<error code="201" description="Missing search query"/>'));
+      // Retorna item de teste para o Prowlarr validar a conexão com sucesso quando busca sem query
+      const pubDate = new Date().toUTCString();
+      const dummyItem = '<item>' +
+        `<title>BrasilRD Prowlarr Test 1080p</title>` +
+        `<guid isPermaLink="false">0000000000000000000000000000000000000000</guid>` +
+        `<link>magnet:?xt=urn:btih:0000000000000000000000000000000000000000</link>` +
+        `<pubDate>${esc(pubDate)}</pubDate>` +
+        `<size>1024</size>` +
+        `<enclosure url="magnet:?xt=urn:btih:0000000000000000000000000000000000000000" type="application/x-bittorrent" length="1024"/>` +
+        `<torznab:attr name="category" value="2000"/>` +
+        `<torznab:attr name="seeders" value="1"/>` +
+        `<torznab:attr name="peers" value="1"/>` +
+        `<torznab:attr name="leechers" value="0"/>` +
+        `<torznab:attr name="infohash" value="0000000000000000000000000000000000000000"/>` +
+        `<torznab:attr name="magneturl" value="magnet:?xt=urn:btih:0000000000000000000000000000000000000000"/>` +
+        `<torznab:attr name="size" value="1024"/>` +
+        `<torznab:attr name="downloadvolumefactor" value="0"/>` +
+        `<torznab:attr name="uploadvolumefactor" value="1"/>` +
+        '</item>';
+
+      return res.send(xml(
+        `<rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">` +
+        `<channel>` +
+        `<title>${esc(INDEXER_TITLE)}</title>` +
+        `<description>${esc(INDEXER_TITLE)}</description>` +
+        `<link/>` +
+        `<language>pt-BR</language>` +
+        `<category>search</category>` +
+        dummyItem +
+        `</channel>` +
+        `</rss>`
+      ));
     }
 
     const season = req.query.season ? Number(req.query.season) : undefined;
@@ -123,6 +154,7 @@ export function setupTorznabRoutes(app: any): void {
   // Prowlarr mounts the indexer at /torznab/<indexerid>/api
   // Also support generic /api and /torznab/api patterns
   const paths = [
+    `/:id/prowlarr/api`,
     `/torznab/${INDEXER_ID}/api`,
     `/torznab/${INDEXER_ID}`,
     '/torznab/api',
