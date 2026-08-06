@@ -4,37 +4,6 @@ const path = require('path');
 
 function buildTypeScript() {
     console.log('Iniciando build do TypeScript...');
-    
-    // Verifica se o TypeScript está instalado
-    try {
-        require.resolve('typescript');
-        console.log('TypeScript encontrado');
-    } catch (error) {
-        console.log('TypeScript não encontrado. Instalando...');
-        const install = spawnSync('npm', ['install', 'typescript'], { 
-            stdio: 'inherit',
-            cwd: process.cwd()
-        });
-        if (install.status !== 0) {
-            console.error('Falha ao instalar TypeScript');
-            process.exit(1);
-        }
-    }
-
-    // Instalar fs-extra se não estiver instalado
-    try {
-        require.resolve('fs-extra');
-    } catch (error) {
-        console.log('Instalando fs-extra para copiar arquivos...');
-        const installFsExtra = spawnSync('npm', ['install', 'fs-extra'], {
-            stdio: 'inherit',
-            cwd: process.cwd()
-        });
-        if (installFsExtra.status !== 0) {
-            console.error('Falha ao instalar fs-extra');
-            process.exit(1);
-        }
-    }
 
     const fsExtra = require('fs-extra');
     const ts = require('typescript');
