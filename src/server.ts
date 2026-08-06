@@ -83,8 +83,8 @@ async function initializeDatabase() {
         logger.error('Falha no banco de dados', {
             error: error instanceof Error ? error.message : 'Erro desconhecido'
         });
-        if (process.env.NODE_ENV === 'production') {
-            logger.warn('Continuando sem banco de dados em produção');
+        if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+            logger.warn('Continuando sem banco de dados em produção/serverless');
         } else {
             throw error;
         }
