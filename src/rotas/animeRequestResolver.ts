@@ -19,5 +19,9 @@ export async function resolveAnimeRequest(request: StreamRequest): Promise<Strea
         request.episode = mapping.episode;
     }
     if (mapping.title) request.title = mapping.title;
+    if (mapping.altTitles?.length) {
+        request.alternativeTitles = [...new Set(mapping.altTitles.map(t => t.trim()))]
+            .filter(t => t.length > 2 && t.toLowerCase() !== (mapping.title || '').toLowerCase());
+    }
     return request;
 }

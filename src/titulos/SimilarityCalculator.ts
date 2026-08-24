@@ -34,7 +34,36 @@ export class SimilarityCalculator {
   private readonly tmdbCache = new Map<string, { data: any; timestamp: number }>();
   private readonly cacheTTL = 5 * 60 * 1000;
 
+  // Aliases de título por IMDb (romaji/native de animes) — injetados no matching
+  private readonly aliasCache = new Map<string, { titulos: string[]; timestamp: number }>();
+  private readonly aliasTTL = 30 * 60 * 1000;
+
   private static instance: SimilarityCalculator;
+
+  /**
+   * Registra títulos alternativos (romaji/native/sinônimos) para um imdbId.
+   * Usado no fluxo de animes (kitsu/mal/anilist/tvdb): posts do DarkMahou usam
+   * romaji, que nunca aparece nos allTitles do TMDB.
+   */
+  public registerTitleAliases(imdbId: string, titulos: string[]): void {
+    const limpos = [...new Set(
+      titulos
+        .map(t => (typeof t === 'string' ? t.trim() : ''))
+        .filter(t => t.length > 2)
+    )].slice(0, 8);
+    if (!imdbId || limpos.length === 0) return;
+    this.aliasCache.set(imdbId, { titulos: limpos, timestamp: Date.now() });
+  }
+
+  private consumirAliases(imdbId: string): string[] {
+    const entry = this.aliasCache.get(imdbId);
+    if (!entry) return [];
+    if (Date.now() - entry.timestamp > this.aliasTTL) {
+      this.aliasCache.delete(imdbId);
+      return [];
+    }
+    return entry.titulos;
+  }
 
   public static getInstance(): SimilarityCalculator {
     if (!SimilarityCalculator.instance) {
@@ -86,6 +115,19 @@ export class SimilarityCalculator {
       } catch (error) {
         this.logger.error('Erro ao buscar TMDB', { imdbId, error: error instanceof Error ? error.message : 'Erro' });
       }
+    }
+
+    // Aliases de anime (romaji/native) participam do matching como títulos válidos
+    const aliases = this.consumirAliases(imdbId);
+    if (movieInfo && aliases.length > 0) {
+      movieInfo = { ...movieInfo, allTitles: [...movieInfo.allTitles, ...aliases] };
+    } else if (!movieInfo && aliases.length > 0) {
+      // Anime sem dados no TMDB: valida só contra os aliases resolvidos
+      movieInfo = {
+        portugueseTitle: null,
+        originalTitle: aliases[0],
+        allTitles: aliases,
+      };
     }
 
     if (!movieInfo) {

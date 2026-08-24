@@ -24,6 +24,8 @@ export interface StreamRequest {
   type: 'movie' | 'series';
   id: string;
   title?: string;
+  /** Títulos alternativos de anime (romaji/native/sinônimos) p/ busca em DarkMahou etc. */
+  alternativeTitles?: string[];
   imdbId?: string;
   season?: number;
   episode?: number;

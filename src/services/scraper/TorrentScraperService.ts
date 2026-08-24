@@ -39,7 +39,8 @@ export class TorrentScraperService {
         type: 'movie' | 'series' | 'anime' = 'movie',
         targetSeason?: number,
         targetYear?: number,
-        imdbId?: string
+        imdbId?: string,
+        alternativeTitles?: string[]
     ): Promise<TorrentResult[]> {
         const startTime = Date.now();
         try {
@@ -60,16 +61,26 @@ export class TorrentScraperService {
             const qPt = tmdbData?.portugueseTitleRaw || tmdbData?.portugueseTitle || query;
             const ptDiferente = qPt !== qEn;
 
+            // Títulos alternativos de anime (romaji/native) — DarkMahou indexa por romaji,
+            // que nunca aparece nos títulos EN/PT do TMDB. Limite de 2 buscas extras.
+            const latinSafe = (t: string) => /^[a-z0-9\s\-\.':,!]+$/.test(t);
+            const seenAlt = new Set([qEn.toLowerCase(), qPt.toLowerCase()]);
+            const altQueries = (alternativeTitles || [])
+                .map(t => (typeof t === 'string' ? t.trim() : ''))
+                .filter(t => t.length > 3 && latinSafe(t) && !seenAlt.has(t.toLowerCase()) && seenAlt.add(t.toLowerCase()))
+                .slice(0, 2);
+
             const [wpResults, starckResults, hdrResults] = await Promise.all([
-                // WordPress + Bludv
+                // WordPress (Comando/DarkMahou/Starck) + Bludv
                 withTimeout(Promise.all([
                     this.bludvScraper.search(qEn, type).catch(() => []),
                     this.bludvScraper.search(qPt, type).catch(() => []),
                     this.wpScraper.search(qEn, type).catch(() => []),
-                    ptDiferente ? this.wpScraper.search(qPt, type).catch(() => []) : Promise.resolve([])
-                ]).then(([bludvEn, bludvPt, wpEn, wpPt]) => {
+                    ptDiferente ? this.wpScraper.search(qPt, type).catch(() => []) : Promise.resolve([]),
+                    ...altQueries.map(q => this.wpScraper.search(q, type).catch(() => []))
+                ]).then(all => {
                     const seen = new Set<string>();
-                    return [...bludvEn, ...bludvPt, ...wpEn, ...wpPt].filter(t => {
+                    return all.flat().filter(t => {
                         if (seen.has(t.magnet)) return false;
                         seen.add(t.magnet);
                         return true;

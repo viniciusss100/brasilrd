@@ -11,6 +11,7 @@ import { TitleFilter } from '../titulos/titleFilter.js';
 import { AutoMagnetService } from '../debrid/AutoMagnetService.js';
 import { metricsService } from '../catalogo/MetricsService.js';
 import { TorrentioService, TorrentioResult } from '../catalogo/TorrentioService.js';
+import { SimilarityCalculator } from '../titulos/SimilarityCalculator.js';
 import { INDICADORES_INTERNACIONAL_TORRENTS } from '../titulos/TechnicalWords.js';
 import { isExcludedRelease } from '../lib/releaseFilter.js';
 
@@ -179,12 +180,20 @@ export class CatalogProvider {
       return [];
     }
 
+    // Animes: aliases romaji/native (Kitsu/MAL/AniList) entram na busca E na validação
+    const altTitles: string[] | undefined = request.alternativeTitles?.length
+      ? request.alternativeTitles
+      : undefined;
+    if (imdbId && altTitles) {
+      SimilarityCalculator.getInstance().registerTitleAliases(imdbId, altTitles);
+    }
+
     if (type === 'series' && finalSeason) {
       searchQuery = `${searchQuery} Temporada ${finalSeason}`;
     }
 
     const torrentResults = await this.torrentScraper.searchTorrents(
-      searchQuery, type, finalSeason, seasonYear ?? undefined, imdbId || undefined
+      searchQuery, type, finalSeason, seasonYear ?? undefined, imdbId || undefined, altTitles
     );
 
     // ═══ Fase única: todos os scrapers rodam juntos, similarity decide ═══

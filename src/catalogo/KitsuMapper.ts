@@ -15,10 +15,25 @@ function cleanAnimeTitle(title: string | null): string | null {
 export interface KitsuMappingResult {
     imdbId: string | null;
     title: string | null;
+    /** Títulos alternativos (romaji, native, sinônimos) — essenciais p/ DarkMahou */
+    altTitles?: string[];
     animeType: 'movie' | 'series'; // normalizado a partir do animeType do Kitsu
     season?: number;
     episode?: number;
     year?: string;
+}
+
+/** Coleta títulos alternativos únicos, descartando o título principal. */
+function coletarAltTitles(candidatos: Array<string | null | undefined>, tituloPrincipal: string | null): string[] {
+    const vistos = new Set([tituloPrincipal?.toLowerCase().trim(), '']);
+    const alt: string[] = [];
+    for (const c of candidatos) {
+        const t = typeof c === 'string' ? c.trim() : '';
+        if (t.length < 2 || vistos.has(t.toLowerCase())) continue;
+        vistos.add(t.toLowerCase());
+        alt.push(t);
+    }
+    return alt.slice(0, 8);
 }
 
 export class KitsuMapper {
@@ -63,9 +78,34 @@ export class KitsuMapper {
             // animeType: 'Movie' -> movie, tudo mais -> series
             const animeType: 'movie' | 'series' =
                 (meta.animeType || '').toLowerCase() === 'movie' ? 'movie' : 'series';
+            const altTitles = coletarAltTitles([
+                meta.alternateName,
+                ...(Array.isArray(meta.aliases) ? meta.aliases : []),
+            ], title);
+
+            // Enriquecimento: provider principal costuma faltar romaji/imdb.
+            // A API edge do Kitsu tem en_jp (romaji) e ja_jp — títulos que o DarkMahou usa.
+            let finalTitle = title;
+            let finalAlts = altTitles;
+            if ((!finalTitle || finalAlts.length === 0) && parts[1]) {
+                const attrs = await this.fetchKitsuEdgeAttributes(parts[1]);
+                if (attrs) {
+                    const t = attrs.titles || {};
+                    if (!finalTitle) {
+                        finalTitle = cleanAnimeTitle(attrs.canonicalTitle || t.en || t.en_jp || null);
+                    }
+                    if (finalAlts.length === 0) {
+                        finalAlts = coletarAltTitles([
+                            t.en_jp,
+                            t.ja_jp,
+                            ...(Array.isArray(attrs.abbreviatedTitles) ? attrs.abbreviatedTitles : []),
+                        ], finalTitle);
+                    }
+                }
+            }
 
             if (!isEpisode) {
-                const result = { imdbId, title, animeType, year };
+                const result = { imdbId, title: finalTitle, altTitles: finalAlts, animeType, year };
                 this.cache.set(kitsuId, result);
                 return result;
             }
@@ -76,7 +116,8 @@ export class KitsuMapper {
             if (video) {
                 const result = {
                     imdbId: video.imdb_id || imdbId,
-                    title: title,
+                    title: finalTitle,
+                    altTitles: finalAlts,
                     animeType,
                     season: titleSeason && (video.imdbSeason || video.season || 1) === 1
                         ? titleSeason
@@ -88,7 +129,7 @@ export class KitsuMapper {
                 return result;
             }
 
-            const result = { imdbId, title, animeType, year };
+            const result = { imdbId, title: finalTitle, altTitles: finalAlts, animeType, year };
             this.cache.set(kitsuId, result);
             return result;
 
@@ -100,6 +141,17 @@ export class KitsuMapper {
         }
     }
 
+    /** Busca atributos do anime na API edge oficial do Kitsu. */
+    private async fetchKitsuEdgeAttributes(animeId: string): Promise<any | null> {
+        try {
+            if (!animeId || !/^\d+$/.test(animeId)) return null;
+            const { data } = await axios.get(`https://kitsu.io/api/edge/anime/${animeId}`, { timeout: 5000 });
+            return data?.data?.attributes || null;
+        } catch {
+            return null;
+        }
+    }
+
     /** Fallback independente do addon Kitsu para não perder o título na busca. */
     private async mapKitsuEdgeId(kitsuId: string): Promise<KitsuMappingResult | null> {
         try {
@@ -107,14 +159,22 @@ export class KitsuMapper {
             const animeId = parts[1];
             if (!animeId || !/^\d+$/.test(animeId)) return null;
 
-            const { data } = await axios.get(`https://kitsu.io/api/edge/anime/${animeId}`, { timeout: 5000 });
-            const attributes = data?.data?.attributes;
+            const attributes = await this.fetchKitsuEdgeAttributes(animeId);
             if (!attributes) return null;
 
             const episode = parts[2] && /^\d+$/.test(parts[2]) ? Number(parts[2]) : undefined;
+            const titles = attributes.titles || {};
+            const title = attributes.canonicalTitle || titles.en || titles.en_jp || titles.ja_jp || null;
+            // en_jp = romaji, ja_jp = kanji — DarkMahou indexa majoritariamente romaji
+            const altTitles = coletarAltTitles([
+                titles.en_jp,
+                titles.ja_jp,
+                ...(Array.isArray(attributes.abbreviatedTitles) ? attributes.abbreviatedTitles : []),
+            ], title);
             const result: KitsuMappingResult = {
                 imdbId: null,
-                title: attributes.canonicalTitle || attributes.titles?.en || attributes.titles?.en_jp || attributes.titles?.ja_jp || null,
+                title,
+                altTitles,
                 animeType: attributes.subtype === 'movie' ? 'movie' : 'series',
                 season: episode === undefined ? undefined : 1,
                 episode,
@@ -174,9 +234,17 @@ export class KitsuMapper {
         if (!anime) return null;
 
         const imdb = anime.external?.find((link: any) => link.name === 'IMDb')?.url?.match(/tt\d+/)?.[0] || null;
+        // Jikan: `title` é o romaji — o nome que sites de torrent de anime usam
+        const title = anime.title_english || anime.title || anime.title_japanese || null;
         return {
             imdbId: imdb,
-            title: anime.title_english || anime.title || anime.title_japanese || null,
+            title,
+            altTitles: coletarAltTitles([
+                anime.title,
+                anime.title_japanese,
+                ...(Array.isArray(anime.synonyms) ? anime.synonyms : []),
+                ...(Array.isArray(anime.title_synonyms) ? anime.title_synonyms : []),
+            ], title),
             animeType: anime.type === 'Movie' ? 'movie' : 'series',
             year: anime.year ? String(anime.year) : undefined,
         };
@@ -184,16 +252,22 @@ export class KitsuMapper {
 
     private async mapAniListId(id: string): Promise<KitsuMappingResult | null> {
         const { data } = await axios.post('https://graphql.anilist.co', {
-            query: `query ($id: Int) { Media(id: $id, type: ANIME) { title { english romaji native } format startDate { year } externalLinks { site url } } }`,
+            query: `query ($id: Int) { Media(id: $id, type: ANIME) { title { english romaji native } synonyms format startDate { year } externalLinks { site url } } }`,
             variables: { id: Number(id) },
         }, { timeout: 5000 });
         const anime = data?.data?.Media;
         if (!anime) return null;
 
         const imdb = anime.externalLinks?.find((link: any) => link.site === 'IMDb')?.url?.match(/tt\d+/)?.[0] || null;
+        const title = anime.title?.english || anime.title?.romaji || anime.title?.native || null;
         return {
             imdbId: imdb,
-            title: anime.title?.english || anime.title?.romaji || anime.title?.native || null,
+            title,
+            altTitles: coletarAltTitles([
+                anime.title?.romaji,
+                anime.title?.native,
+                ...(Array.isArray(anime.synonyms) ? anime.synonyms : []),
+            ], title),
             animeType: anime.format === 'MOVIE' ? 'movie' : 'series',
             year: anime.startDate?.year ? String(anime.startDate.year) : undefined,
         };
@@ -207,6 +281,8 @@ export class KitsuMapper {
         return {
             imdbId: meta.imdb_id || null,
             title: meta.name || null,
+            altTitles: coletarAltTitles(
+                Array.isArray(meta.aliases) ? meta.aliases : [], meta.name || null),
             animeType: meta.type === 'movie' ? 'movie' : 'series',
             year: meta.releaseInfo || meta.year || null,
         };
