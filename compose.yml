@@ -1,0 +1,30 @@
+services:
+  brasilrd:
+    build: .
+    image: brasilrd:latest
+    container_name: brasilrd
+    network_mode: "container:protonvpn"
+    depends_on:
+      protonvpn:
+        condition: service_healthy
+        restart: true
+    restart: unless-stopped
+    # Porta publicada via gluetun no compose.yml raiz ("7000:7000")
+    # Migração tolerante a falhas: sobe mesmo sem PostgreSQL alcançável
+    command: sh -c "npm run migrate || true; exec npm run start:stremio"
+    env_file:
+      - .env
+    environment:
+      - PORT=7000
+      - NODE_ENV=production
+      # Modo alternativo (tráfego direto + só scrapers via VPN):
+      # comente network_mode acima, descomente "networks" abaixo
+      # e aponte PROXY_URL do .env para http://protonvpn:8888
+      # PROXY_URL=http://protonvpn:8888
+    volumes:
+      - ./storage:/app/storage
+
+# networks:
+#   no_vpn:
+#     external: true
+#     name: docker_no_vpn

@@ -1,33 +1,10 @@
 import { Logger } from '../utils/logger.js';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import dns from 'dns';
-import https from 'https';
-import tls from 'tls';
 import { getTmdbTitlesViaHtml } from './TmdbHtmlScraper.js';
+import { agenteHttps as dnsAgent, lookupCustomizado as lookupImdb } from '../services/scraper/wordpressScraper.js';
 
 const logger = new Logger('TMDBScraper');
-
-// DNS bypass (igual aos scrapers)
-dns.setServers(['8.8.8.8', '1.1.1.1']);
-class DnsAgent extends https.Agent {
-  createConnection(options: any, cb: any): any {
-    const hostname = options.hostname || options.host || '';
-    dns.resolve4(hostname, (err, addresses) => {
-      if (err) return cb(err);
-      const sock = tls.connect({ host: addresses[0], port: options.port || 443, servername: hostname, rejectUnauthorized: false }, () => cb(null, sock));
-      sock.on('error', cb);
-    });
-    return undefined;
-  }
-}
-const dnsAgent = new DnsAgent({ keepAlive: true });
-const lookupImdb = (hostname: string, _opts: any, cb: any) => {
-  dns.resolve4(hostname, (err, addresses) => {
-    if (err) return cb(err);
-    cb(null, addresses[0], 4);
-  });
-};
 
 export interface ImdbTitles {
   originalTitle: string;

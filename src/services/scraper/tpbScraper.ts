@@ -2,41 +2,10 @@
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import dns from 'dns';
-import https from 'https';
-import tls from 'tls';
 import { Logger } from '../../utils/logger.js';
+import { agenteHttps as dnsAgent, lookupCustomizado } from './wordpressScraper.js';
 
 const logger = new Logger('TPBScraper');
-
-// Força DNS público (Google/Cloudflare) para bypass de bloqueios
-dns.setServers(['8.8.8.8', '1.1.1.1']);
-
-// Agente HTTPS com DNS customizado (resolve via Google DNS, não DNS do SO)
-class DnsAgent extends https.Agent {
-  createConnection(options: any, cb: any): any {
-    const hostname = options.hostname || options.host || '';
-    (dns as any).resolve4(hostname, (err: any, addresses: string[]) => {
-      if (err) return cb(err);
-      const sock = tls.connect({
-        host: addresses[0],
-        port: options.port || 443,
-        servername: hostname,
-        rejectUnauthorized: false,
-      }, () => cb(null, sock));
-      sock.on('error', cb);
-    });
-    return undefined as any;
-  }
-}
-
-const dnsAgent = new DnsAgent({ keepAlive: true });
-const lookupCustomizado = (hostname: string, _opts: any, cb: any) => {
-  dns.resolve4(hostname, (err, addresses) => {
-    if (err) return cb(err);
-    cb(null, addresses[0], 4);
-  });
-};
 
 export interface TpbTorrent {
   title: string;

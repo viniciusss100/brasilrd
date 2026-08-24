@@ -44,7 +44,29 @@ class DnsAgent extends https.Agent {
 
 const dnsAgent = new DnsAgent({ keepAlive: true });
 
-export const agenteHttps = dnsAgent;
+// PROXY_URL no .env:
+//   http://user:senha@host:8888 → proxy HTTP (gluetun, Privoxy, Squid)
+//   https://host:port           → proxy HTTPS
+// Quando definido, TODAS as requisições dos scrapers saem pelo proxy
+// (ex.: http://protonvpn:8888 no Docker, ou proxy exposto de casa no Vercel).
+const PROXY_URL = process.env.PROXY_URL?.trim() || '';
+
+function createProxyAgent(proxyUrl: string): any {
+  const url = new URL(proxyUrl);
+  const host = url.hostname;
+  const port = parseInt(url.port) || (url.protocol === 'https:' ? 443 : 8080);
+  const proxyAuth = url.username
+    ? `${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`
+    : undefined;
+
+  if (url.protocol === 'https:') {
+    return tunnel.httpsOverHttps({ proxy: { host, port, proxyAuth } });
+  }
+  // HTTP proxy (mais comum: Privoxy, Squid, gluetun)
+  return tunnel.httpsOverHttp({ proxy: { host, port, proxyAuth } });
+}
+
+export const agenteHttps = PROXY_URL ? createProxyAgent(PROXY_URL) : dnsAgent;
 
 // Funcao lookup customizada: usa dns.resolve4 para bypassar DNS do sistema
 // Axios/Node usa dns.lookup() (DNS do SO) antes de delegar ao httpsAgent.
@@ -65,21 +87,6 @@ interface WordPressSite {
   priority: number;
   timeout: number;
   requiresProxy?: boolean;
-}
-
-// PROXY_URL no .env:
-//   http://localhost:8118  → HTTP proxy (Privoxy, Squid)
-//   https://localhost:8443 → HTTPS proxy
-function createProxyAgent(proxyUrl: string): any {
-  const url = new URL(proxyUrl);
-  const host = url.hostname;
-  const port = parseInt(url.port) || (url.protocol === 'https:' ? 443 : 8118);
-
-  if (url.protocol === 'https:') {
-    return tunnel.httpsOverHttps({ proxy: { host, port } });
-  }
-  // HTTP proxy (mais comum: Privoxy, Squid, etc)
-  return tunnel.httpsOverHttp({ proxy: { host, port } });
 }
 
 const WP_SITES: WordPressSite[] = [

@@ -2,34 +2,11 @@
 // quando a API key não funciona. Busca em pt-BR e en.
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import dns from 'dns';
-import https from 'https';
-import tls from 'tls';
 import { Logger } from '../utils/logger.js';
 import { ImdbTitles } from './ImdbScraperService.js';
+import { agenteHttps as dnsAgent, lookupCustomizado as dnsLookup } from '../services/scraper/wordpressScraper.js';
 
 const logger = new Logger('TmdbHtmlScraper');
-
-// DNS bypass (mesmo dos outros scrapers)
-dns.setServers(['8.8.8.8', '1.1.1.1']);
-class DnsAgent extends https.Agent {
-  createConnection(options: any, cb: any): any {
-    const hostname = options.hostname || options.host || '';
-    dns.resolve4(hostname, (err, addresses) => {
-      if (err) return cb(err);
-      const sock = tls.connect({ host: addresses[0], port: options.port || 443, servername: hostname, rejectUnauthorized: false }, () => cb(null, sock));
-      sock.on('error', cb);
-    });
-    return undefined;
-  }
-}
-const dnsAgent = new DnsAgent({ keepAlive: true });
-const dnsLookup = (hostname: string, _opts: any, cb: any) => {
-  dns.resolve4(hostname, (err, addresses) => {
-    if (err) return cb(err);
-    cb(null, addresses[0], 4);
-  });
-};
 
 const axiosConfig = {
   timeout: 15000,
