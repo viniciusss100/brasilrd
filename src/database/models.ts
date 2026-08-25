@@ -1,3 +1,9 @@
+// Import estático OBRIGATÓRIO do driver: o Sequelize carrega o dialect 'pg'
+// dinamicamente em runtime (_loadDialectModule) e o file-tracer da Vercel não
+// inclui o pacote no lambda sem esta referência direta.
+import pg from 'pg';
+void pg;
+
 import { Sequelize, DataTypes, Model } from 'sequelize';
 import dotenv from 'dotenv';
 
