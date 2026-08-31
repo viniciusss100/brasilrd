@@ -84,6 +84,30 @@ async function createTables() {
       );
     `, { type: QueryTypes.RAW });
 
+    // Colunas usadas pelo modelo Torrent (models.ts) ausentes no CREATE acima
+    console.log('Garantindo colunas do modelo Torrent...');
+    await sequelize.query(`
+      ALTER TABLE torrents
+        ADD COLUMN IF NOT EXISTS "idioma" VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS "qualidade" VARCHAR(10),
+        ADD COLUMN IF NOT EXISTS "imdbId" VARCHAR(32),
+        ADD COLUMN IF NOT EXISTS "imdbSeason" INTEGER,
+        ADD COLUMN IF NOT EXISTS "imdbEpisodeStart" INTEGER,
+        ADD COLUMN IF NOT EXISTS "imdbEpisodeEnd" INTEGER,
+        ADD COLUMN IF NOT EXISTS "lastSeen" TIMESTAMP DEFAULT NOW(),
+        ADD COLUMN IF NOT EXISTS "rescrapeAt" TIMESTAMP;
+    `, { type: QueryTypes.RAW });
+
+    // Índices definidos no modelo Torrent
+    await sequelize.query(`
+      CREATE INDEX IF NOT EXISTS "torrents_seeders" ON torrents ("seeders");
+      CREATE INDEX IF NOT EXISTS "torrents_type" ON torrents ("type");
+      CREATE INDEX IF NOT EXISTS "torrents_idioma" ON torrents ("idioma");
+      CREATE INDEX IF NOT EXISTS "torrents_provider" ON torrents ("provider");
+      CREATE INDEX IF NOT EXISTS "torrents_uploadDate" ON torrents ("uploadDate");
+      CREATE INDEX IF NOT EXISTS "torrents_imdbId_type" ON torrents ("imdbId", "type");
+    `, { type: QueryTypes.RAW });
+
     // Criar tabela files (exatamente como no models.ts)
     console.log('Criando tabela files...');
     await sequelize.query(`

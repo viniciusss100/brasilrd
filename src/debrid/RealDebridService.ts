@@ -35,6 +35,9 @@ export class TorboxService {
   private readonly baseDelay: number = 1000;
   /** Cache infoHash → torrentId para torrents em fila (queued) não listados no mylist */
   private static queuedTorrentCache = new Map<string, string>();
+  /** Cache em memória da verificação de cache: hash → { cached, at } */
+  private static checkCachedCache = new Map<string, { cached: boolean; at: number }>();
+  private static readonly CHECK_CACHED_TTL = 30 * 60 * 1000;
   private readonly videoExtensions: string[] = [
     '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v',
     '.mpg', '.mpeg', '.3gp', '.ts', '.mts', '.m2ts', '.vob'
@@ -340,6 +343,60 @@ export class TorboxService {
       this.logger.error('Falha ao buscar torrent existente', { magnetHash: magnetHash.substring(0, 16) });
       return null;
     }
+  }
+
+  /**
+   * Verifica em lote quais hashes já estão em cache no Torbox
+   * (usado para o badge ⚡️ de "em cache no debrid" nos resultados).
+   * Nunca lança erro: em falha retorna conjunto vazio (o badge apenas não aparece).
+   */
+  async checkCachedHashes(hashes: string[], apiKey: string): Promise<Set<string>> {
+    const cachedResult = new Set<string>();
+    const hashesValidos = Array.from(new Set(
+      (hashes || []).map(h => h.trim().toLowerCase()).filter(Boolean)
+    ));
+    if (hashesValidos.length === 0 || !apiKey) return cachedResult;
+
+    const agora = Date.now();
+    const paraVerificar: string[] = [];
+    for (const hash of hashesValidos) {
+      const conhecido = TorboxService.checkCachedCache.get(hash);
+      if (conhecido && (agora - conhecido.at) < TorboxService.CHECK_CACHED_TTL) {
+        if (conhecido.cached) cachedResult.add(hash);
+      } else {
+        paraVerificar.push(hash);
+      }
+    }
+    if (paraVerificar.length === 0) return cachedResult;
+
+    try {
+      const client = this.createHttpClient(apiKey);
+      const response = await this.retryableRequest(
+        () => client.post('/torrents/checkcached', { hashes: paraVerificar }, { timeout: 15000 }),
+        'checkCachedHashes'
+      );
+      // Torbox retorna { data: { <hash>: [arquivos em cache] } } — array vazio = NÃO em cache
+      const data = response.data?.data || response.data || {};
+      const registro = (data && typeof data === 'object' && !Array.isArray(data)) ? data : {};
+      for (const [hash, arquivos] of Object.entries(registro)) {
+        const emCache = Array.isArray(arquivos) ? arquivos.length > 0 : !!arquivos;
+        const hashNormalizado = hash.toLowerCase();
+        TorboxService.checkCachedCache.set(hashNormalizado, { cached: emCache, at: agora });
+        if (emCache) cachedResult.add(hashNormalizado);
+      }
+      // Hashes não retornados: não estão em cache
+      for (const hash of paraVerificar) {
+        if (!TorboxService.checkCachedCache.has(hash)) {
+          TorboxService.checkCachedCache.set(hash, { cached: false, at: agora });
+        }
+      }
+    } catch (error) {
+      this.logger.warn('Falha ao verificar cache no Torbox', {
+        error: error instanceof Error ? error.message : 'Erro',
+        hashes: paraVerificar.length
+      });
+    }
+    return cachedResult;
   }
 
   async processTorrent(magnetLink: string, apiKey: string) {

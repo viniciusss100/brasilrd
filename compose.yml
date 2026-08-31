@@ -7,7 +7,8 @@ services:
     depends_on:
       protonvpn:
         condition: service_healthy
-        restart: true
+      brasilrd-postgres:
+        condition: service_healthy
     restart: unless-stopped
     # Porta publicada via gluetun no compose.yml raiz ("7000:7000")
     # Migração tolerante a falhas: sobe mesmo sem PostgreSQL alcançável
@@ -17,6 +18,11 @@ services:
     environment:
       - PORT=7000
       - NODE_ENV=production
+      # HTTP interno: o aiostreams (mesmo netns do gluetun) busca o manifesto
+      # sem falhar no certificado autoassinado. TLS público fica por conta do
+      # túnel/proxy reverso. Comente as duas linhas abaixo para voltar ao HTTPS.
+      - SSL_PRIVATE_KEY=
+      - SSL_CERTIFICATE=
       # Modo alternativo (tráfego direto + só scrapers via VPN):
       # comente network_mode acima, descomente "networks" abaixo
       # e aponte PROXY_URL do .env para http://protonvpn:8888
@@ -24,6 +30,24 @@ services:
     volumes:
       - ./storage:/app/storage
 
+  brasilrd-postgres:
+    image: postgres:17-alpine
+    container_name: brasilrd-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: brasil_rd_addon
+      POSTGRES_USER: brasilrd
+      POSTGRES_PASSWORD: f7199a3c5d45a2a6e9def5fa02ec737a
+    volumes:
+      - ./storage/postgres:/var/lib/postgresql/data
+    networks: [no_vpn]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brasilrd -d brasil_rd_addon"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+# Para uso standalone (fora do compose raiz), descomente:
 # networks:
 #   no_vpn:
 #     external: true

@@ -143,9 +143,8 @@ export class StreamHandler {
         return { streams: this.deduplicateStreamsByInfoHash(catalogResult.streams) };
       }
 
-      // Sem streams no DB nem no catálogo → stream informativo
-      const informativeStream = this.createInformativeStreamIfNoContent(request);
-      return { streams: informativeStream ? [informativeStream] : [] };
+      // Sem streams no DB nem no catálogo → retorna vazio (sem resultado fake de "Baixando")
+      return { streams: [] };
     } catch (error) {
       this.logger.error('Falha no processamento', {
         requestId,
@@ -172,18 +171,6 @@ export class StreamHandler {
       requestId
     );
     return this.convertToStreamFormat(informativeStream);
-  }
-
-  private createInformativeStreamIfNoContent(request: StreamRequest): Stream | null {
-    const imdbId = this.extractImdbIdFromRequest(request);
-    if (imdbId || request.type === 'series') {
-      const informativeStream = this.staticResponseService.createInformativeStream(
-        StaticResponse.DOWNLOADING,
-        request.id
-      );
-      return this.convertToStreamFormat(informativeStream);
-    }
-    return null;
   }
 
   private convertToStreamFormat(informativeStream: any): Stream {
@@ -245,6 +232,24 @@ export class StreamHandler {
       // Converte direto — validação já foi feita no save (SimilarityCalculator)
       // Filtra idioma: só retorna torrents PT-BR (exclui Legendado/EN)
       const streams: Stream[] = [];
+
+      // ⚡️ Badge de "em cache no debrid": consulta o Torbox em lote pelos hashes dos resultados
+      let cachedHashes = new Set<string>();
+      const hashesParaChecar = Array.from(new Set(
+        torrents
+          .map((t: any) => (t.infoHash || '').trim().toLowerCase())
+          .filter(Boolean)
+      ));
+      if (hashesParaChecar.length > 0 && request.apiKey) {
+        try {
+          cachedHashes = await this.torboxService.checkCachedHashes(hashesParaChecar, request.apiKey);
+        } catch (error) {
+          this.logger.debug('Badge de cache nao aplicado (Torbox indisponivel)', {
+            error: error instanceof Error ? error.message : 'Erro'
+          });
+        }
+      }
+
       for (const t of torrents) {
         // Pula torrents com idioma explicitamente Legendado ou EN
         const idioma = (t.idioma || '').toLowerCase();
@@ -254,7 +259,10 @@ export class StreamHandler {
         if (LEGENDADO_REGEX.test(titleLower)) continue;
         if (isExcludedRelease(t.title)) continue;
 
-        const stream = await this.convertTorrentToStream(t, request);
+        const stream = await this.convertTorrentToStream(
+          t, request,
+          !!t.infoHash && cachedHashes.has(String(t.infoHash).trim().toLowerCase())
+        );
         if (stream) streams.push(stream);
       }
 
@@ -268,7 +276,7 @@ export class StreamHandler {
     }
   }
 
-  private async convertTorrentToStream(torrent: any, request: StreamRequest): Promise<Stream | null> {
+  private async convertTorrentToStream(torrent: any, request: StreamRequest, cachedNoDebrid: boolean = false): Promise<Stream | null> {
     try {
       const quality = torrent.qualidade || this.qualityDetector.extractQualityFromFilename(torrent.title);
 
@@ -290,7 +298,7 @@ export class StreamHandler {
         magnet_link: `magnet:?xt=urn:btih:${torrent.infoHash}`,
       };
 
-      // Delega ao StreamFormatter (formato Torrentio com emojis, compatível com Stremio)
+      // Delega ao StreamFormatter (formato StremThru com emojis, compatível com Stremio)
       const streams = await this.streamFormatter.createMultipleQualityStreams(
         torrentWithMagnet,
         request,
@@ -299,7 +307,8 @@ export class StreamHandler {
         season,
         episode,
         false, // isAvailableOnRD
-        0     // fileIdx
+        0,     // fileIdx
+        cachedNoDebrid
       );
 
       return streams[0] || null;

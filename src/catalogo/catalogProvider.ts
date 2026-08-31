@@ -9,6 +9,7 @@ import { TorrentScraperService } from '../services/scraper/TorrentScraperService
 import { ImdbScraperService, ImdbTitles } from '../catalogo/ImdbScraperService.js';
 import { TitleFilter } from '../titulos/titleFilter.js';
 import { AutoMagnetService } from '../debrid/AutoMagnetService.js';
+import { TorboxService } from '../debrid/RealDebridService.js';
 import { metricsService } from '../catalogo/MetricsService.js';
 import { TorrentioService, TorrentioResult } from '../catalogo/TorrentioService.js';
 import { SimilarityCalculator } from '../titulos/SimilarityCalculator.js';
@@ -54,6 +55,7 @@ export class CatalogProvider {
   private readonly titleFilter: TitleFilter;
   private readonly autoMagnetService: AutoMagnetService;
   private readonly torrentioService: TorrentioService;
+  private readonly torboxService: TorboxService;
 
   private readonly streamCache = new Map<string, { streams: Stream[]; timestamp: number; isEmpty: boolean }>();
   private readonly STREAM_TTL = 24 * 60 * 60 * 1000;
@@ -76,6 +78,7 @@ export class CatalogProvider {
     this.titleFilter = TitleFilter.getInstance();
     this.autoMagnetService = new AutoMagnetService();
     this.torrentioService = new TorrentioService();
+    this.torboxService = new TorboxService();
   }
 
   async getTmdbSearchData(imdbId: string, season?: number): Promise<TmdbSearchData> {
@@ -225,7 +228,24 @@ export class CatalogProvider {
     await this.saveValidTorrentsToCatalog(valid, request, finalSeason, episodeToSave,
       tmdb?.imdbTitles, !hasExactEpisode && hasCompletePack);
 
-    const streams = await this.processTorrentsWithOptimization(valid, request, finalSeason, finalEpisode);
+    // ⚡️ Badge de "em cache no debrid": consulta o Torbox em lote pelos hashes dos resultados
+    let cachedHashes = new Set<string>();
+    if (request?.apiKey && valid.length > 0) {
+      const hashes = Array.from(new Set(
+        valid.map(t => t.magnetInfoHash).filter((h): h is string => !!h)
+      ));
+      if (hashes.length > 0) {
+        try {
+          cachedHashes = await this.torboxService.checkCachedHashes(hashes, request.apiKey);
+        } catch (error) {
+          this.logger.debug('Badge de cache nao aplicado (Torbox indisponivel)', {
+            error: error instanceof Error ? error.message : 'Erro'
+          });
+        }
+      }
+    }
+
+    const streams = await this.processTorrentsWithOptimization(valid, request, finalSeason, finalEpisode, cachedHashes);
     return this.streamFormatter.sortStreamsByQuality(streams);
   }
 
@@ -353,7 +373,8 @@ export class CatalogProvider {
   }
 
   private async processTorrentsWithOptimization(
-    torrents: ScrapedTorrent[], request: any, season?: number, episode?: number
+    torrents: ScrapedTorrent[], request: any, season?: number, episode?: number,
+    cachedHashes?: Set<string>
   ): Promise<Stream[]> {
     const streams: Stream[] = [];
     const batchSize = 5;
@@ -364,7 +385,8 @@ export class CatalogProvider {
           return await this.streamFormatter.createMultipleQualityStreams(
             torrent, request, null,
             request.type === 'series' ? 'series' : 'movie',
-            season, episode, false
+            season, episode, false, undefined,
+            !!torrent.magnetInfoHash && cachedHashes?.has(torrent.magnetInfoHash)
           );
         } catch {
           return [];
