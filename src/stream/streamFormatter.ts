@@ -165,6 +165,39 @@ export class StreamFormatter {
     return dataObj.toLocaleDateString('pt-BR');
   }
 
+  // Formata tamanho em bytes (número) ou string já formatada ("4.31 GB") para exibição
+  private formatarTamanho(tamanho?: number | string): string | undefined {
+    if (tamanho === undefined || tamanho === null) return undefined;
+    if (typeof tamanho === 'string') {
+      const texto = tamanho.trim();
+      if (!texto || texto === '' || /^n\/a$/i.test(texto) || /^desconhecido$/i.test(texto)) return undefined;
+      // Já formatado: "4.31 GB", "1.2GB", "900 MB"...
+      const jaFormatado = texto.match(/^(\d+(?:[.,]\d+)?)\s*([KMGT]?B)\b/i);
+      if (jaFormatado) {
+        const unidade = jaFormatado[2].toUpperCase() === 'B' ? 'MB' : jaFormatado[2].toUpperCase();
+        return `${jaFormatado[1].replace(',', '.')} ${unidade}`;
+      }
+      // Texto numérico puro (bytes)
+      if (/^\d+$/.test(texto)) {
+        return this.formatarTamanho(parseInt(texto, 10));
+      }
+      return undefined;
+    }
+    if (typeof tamanho === 'number') {
+      if (!Number.isFinite(tamanho) || tamanho <= 0) return undefined;
+      const unidades = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let valor = tamanho;
+      let indice = 0;
+      while (valor >= 1024 && indice < unidades.length - 1) {
+        valor /= 1024;
+        indice++;
+      }
+      const casas = indice < 2 ? 0 : 2;
+      return `${valor.toFixed(casas)} ${unidades[indice]}`;
+    }
+    return undefined;
+  }
+
   // Adiciona a qualidade real ao titulo caso ele nao a mencione
   private atualizarQualidadeNoTitulo(titulo: string, qualidade: string): string {
     const regexQualidade = new RegExp(`\\b${qualidade}\\b`, 'i');
@@ -529,8 +562,9 @@ export class StreamFormatter {
 
     // Cria stream SEPARADO para cada qualidade
     for (const qualidade of todasQualidades) {
-      // DESCRIÇÃO base com seeds, tamanho e idioma
-      const descricaoBase = `${tituloFonte}\n${torrent.seeders || 0} seeds | ${torrent.size || 'N/A'} | ${this.formatarIdioma(torrent.language || 'PT-BR')}`;
+      // DESCRIÇÃO base com seeds, tamanho (formatado) e idioma
+      const tamanhoFormatado = this.formatarTamanho(torrent.size);
+      const descricaoBase = `${tituloFonte}\n${torrent.seeders || 0} seeds | ${tamanhoFormatado || 'N/A'} | ${this.formatarIdioma(torrent.language || 'PT-BR')}`;
       
       // TÍTULO COMPLETO do torrent (não modificado)
       const tituloCompletoTorrent = tituloFonte;
@@ -722,7 +756,8 @@ export class StreamFormatter {
     const qualidades = this.extrairTodasQualidades(torrent.title);
     const qualidade = qualidades.length > 0 ? qualidades[0] : this.qualityDetector.extractBestQuality(torrent.title);
     
-    const descricaoBase = `${torrent.title}\n${torrent.seeders || 0} seeds | ${torrent.size || 'N/A'} | ${this.formatarIdioma(torrent.language || 'PT-BR')}`;
+    const tamanhoFormatado = this.formatarTamanho(torrent.size);
+    const descricaoBase = `${torrent.title}\n${torrent.seeders || 0} seeds | ${tamanhoFormatado || 'N/A'} | ${this.formatarIdioma(torrent.language || 'PT-BR')}`;
     
     return await this.criarStreamLazy(
       torrent.title, // Título COMPLETO do torrent
@@ -753,7 +788,8 @@ export class StreamFormatter {
     const qualidades = this.extrairTodasQualidades(torrent.title);
     const qualidade = qualidades.length > 0 ? qualidades[0] : this.qualityDetector.extractBestQuality(torrent.title);
     
-    const descricaoBase = `${torrent.title}\n${torrent.seeders || 0} seeds | ${torrent.size || 'N/A'} | ${this.formatarIdioma(torrent.language || 'PT-BR')}`;
+    const tamanhoFormatado = this.formatarTamanho(torrent.size);
+    const descricaoBase = `${torrent.title}\n${torrent.seeders || 0} seeds | ${tamanhoFormatado || 'N/A'} | ${this.formatarIdioma(torrent.language || 'PT-BR')}`;
     
     return await this.criarStreamLazy(
       torrent.title, // Título COMPLETO do torrent
