@@ -20,6 +20,7 @@ import { clientInfoMiddleware } from './middlewares/clientInfo.js';
 import { createRateLimiter, torrentioRateLimiter } from './middlewares/rateLimit.js';
 import { metricsService } from './catalogo/MetricsService.js';
 import { ultraDebugMiddleware, manifestDebugMiddleware, configureDebugMiddleware } from './middlewares/ultraDebug.js';
+import { etagMiddleware } from './middlewares/etag.js';
 import { RescrapeService } from './services/RescrapeService.js';
 import { encryptConfig, decryptConfig } from './lib/urlCrypto.js';
 import { resolveAnimeRequest } from './rotas/animeRequestResolver.js';
@@ -107,6 +108,12 @@ app.use((req: any, res: any, next: any) => {
     next();
 });
 
+// ETag inteligente (economia de banda em manifest/catalog). Evita streaming/arquivos.
+app.use(etagMiddleware({
+    excludePaths: ['/resolve', '/videos', '/static/videos'],
+    defaultMaxAge: 300,
+}));
+
 // Configure
 app.get('/configure', configureDebugMiddleware(), (req: any, res: any) => {
     const ultraLogger = new Logger('CONFIGURE');
@@ -119,7 +126,38 @@ app.get('/configure', configureDebugMiddleware(), (req: any, res: any) => {
     });
     res.setHeader('content-type', 'text/html');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'max-age=3600, public');
     res.end(configureTemplate(manifest));
+});
+
+// Configure via Torbox (compatível com Nuvio — a chave vem no path)
+app.get('/torbox=:apiKey/configure', configureDebugMiddleware(), (req: any, res: any) => {
+    const nuvioLogger = new Logger('NUVIO-CONFIGURE');
+    nuvioLogger.info('CONFIGURE via Torbox solicitado', {
+        requestId: req._ultraDebugId,
+        apiKeyPresent: !!req.params.apiKey,
+        apiKeyLength: req.params.apiKey?.length || 0,
+        host: req.get('host'),
+    });
+    res.setHeader('content-type', 'text/html');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'max-age=3600, public');
+    res.end(configureTemplate(manifest, req.params.apiKey || ''));
+});
+
+// Configure via RealDebrid (compatível com Nuvio)
+app.get('/realdebrid=:apiKey/configure', configureDebugMiddleware(), (req: any, res: any) => {
+    const nuvioLogger = new Logger('NUVIO-CONFIGURE-RD');
+    nuvioLogger.info('CONFIGURE via RealDebrid solicitado', {
+        requestId: req._ultraDebugId,
+        apiKeyPresent: !!req.params.apiKey,
+        apiKeyLength: req.params.apiKey?.length || 0,
+        host: req.get('host'),
+    });
+    res.setHeader('content-type', 'text/html');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'max-age=3600, public');
+    res.end(configureTemplate(manifest, req.params.apiKey || ''));
 });
 
 // ROTA TORRENTIO 1: /torbox=APIKEY/manifest.json
@@ -137,7 +175,8 @@ app.get('/torbox=:apiKey/manifest.json', torrentioRateLimiter, manifestDebugMidd
         userAgent: req.get('user-agent')?.substring(0, 80),
     });
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, X-Request-ID');
+    res.setHeader('Cache-Control', 'max-age=86400, public');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, X-Request-ID, ETag');
     res.json(manifest);
 });
 
@@ -153,7 +192,8 @@ app.get('/realdebrid=:apiKey/manifest.json', torrentioRateLimiter, manifestDebug
         origin: req.get('origin'),
     });
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, X-Request-ID');
+    res.setHeader('Cache-Control', 'max-age=86400, public');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, X-Request-ID, ETag');
     res.json(manifest);
 });
 
@@ -164,7 +204,8 @@ app.get('/e/:token/manifest.json', torrentioRateLimiter, manifestDebugMiddleware
         return res.status(400).json({ err: 'Token inválido ou expirado' });
     }
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, X-Request-ID');
+    res.setHeader('Cache-Control', 'max-age=86400, public');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, X-Request-ID, ETag');
     res.json(manifest);
 });
 

@@ -2,9 +2,10 @@ import { Logger } from '../utils/logger.js';
 
 const logger = new Logger('ConfigureTemplate');
 
-export const configureTemplate = (manifest: any) => {
+export const configureTemplate = (manifest: any, apiKey: string = '') => {
     const background = manifest.background || 'https://dl.strem.io/addon-background.jpg';
     const logo = manifest.logo || 'https://dl.strem.io/addon-logo.png';
+    const inicialApiKey = apiKey || '';
     
     return `<!DOCTYPE html>
     <html style="background-image: url(${background});">
@@ -131,6 +132,7 @@ export const configureTemplate = (manifest: any) => {
                            name="${manifest.config[0].key}" 
                            class="full-width" 
                            placeholder="Cole sua chave de API do Torbox"
+                           value="${inicialApiKey}"
                            autocomplete="off" />
                     
                     <div class="info-text">

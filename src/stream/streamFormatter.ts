@@ -211,7 +211,11 @@ export class StreamFormatter {
     return `${titulo} (${qualidade})`;
   }
 
-  // Formata idioma mantendo nossos padrões
+  // Formata idioma mantendo nossos padrões.
+  // IMPORTANTE: multi-áudio "Dual" (PT-BR + original) e "Dual Áudio" são
+  // exibidos como PT-BR — o release tem faixa de áudio em português do
+  // Brasil, então o resultado aparece como "português brasil" no
+  // Stremio/Nuvio/aiostreams.
   private formatarIdioma(idioma: string): string {
     if (!idioma) return 'PT-BR';
     
@@ -223,24 +227,31 @@ export class StreamFormatter {
       'portuguese': 'PT-BR',
       'brazilian': 'PT-BR',
       'dublado': 'PT-BR',
+      'dublada': 'PT-BR',
+      'dublagem': 'PT-BR',
+      'nacional': 'PT-BR',
+      
+      // Dual / Dual Áudio / dual audio => tem áudio PT-BR -> mostrar PT-BR
+      'dual': 'PT-BR',
+      'dual audio': 'PT-BR',
+      'dual áudio': 'PT-BR',
+      'dualaudio': 'PT-BR',
+      'pt-br,en': 'PT-BR',
+      'pt-br,en-us': 'PT-BR',
+      'portuguese,english': 'PT-BR',
+      'dublado,legendado': 'PT-BR',
       
       'en': 'EN',
       'english': 'EN',
       'eng': 'EN',
       'legendado': 'EN',
-      
-      'dual': 'Dual',
-      'dual audio': 'Dual',
-      'dualaudio': 'Dual',
-      'pt-br,en': 'Dual',
-      'pt-br,en-us': 'Dual',
-      'portuguese,english': 'Dual',
-      'dublado,legendado': 'Dual',
+      'legendada': 'EN',
+      'legenda': 'EN',
+      'subtitled': 'EN',
       
       'multi': 'Multi',
       'multilanguage': 'Multi',
       'pt-br,en-us,ja-jp': 'Multi',
-      'portuguese,english,japanese': 'Multi',
       
       'es': 'ES',
       'spanish': 'ES',
@@ -340,6 +351,7 @@ export class StreamFormatter {
         bingeGroup: `br-${tipo || 'movie'}-${qualidadeReal}`,
         filename: this.sanitizarNomeArquivo(tituloFinal.split('\n')[0]),
         streamQuality: qualidadeReal,
+        preferredAudioLanguage: 'por',
         ...behaviorHints
       };
     }
@@ -462,6 +474,7 @@ export class StreamFormatter {
         bingeGroup: `br-${tipo || 'movie'}-${qualidadeReal}`,
         filename: this.sanitizarNomeArquivo(tituloFinal.split('\n')[0]),
         streamQuality: qualidadeReal,
+        preferredAudioLanguage: 'por',
         ...behaviorHints
       };
     }
@@ -486,20 +499,34 @@ export class StreamFormatter {
   }
 
   // Extrai idioma da descrição
+  // Ordem de prioridade: PT (dublado/dual/nacional/pt-br) > legendado > multi > demais.
+  // Releases "Dual"/"Dual Áudio" no título (filename) são tratados como PT-BR
+  // (possuem faixa de áudio em português do Brasil).
   private extrairIdiomaDaDescricao(descricao: string): string {
-    const padroesIdioma = [
-      /\b(PT-BR|Dual|EN|Multi|ES|FR)\b/i,
-      /\b(portuguese|english|spanish|french)\b/i,
-      /\b(dublado|legendado|subtitled)\b/i
-    ];
-    
-    for (const padrao of padroesIdioma) {
-      const match = descricao.match(padrao);
-      if (match) {
-        return match[1];
-      }
-    }
-    
+    if (!descricao) return 'PT-BR';
+
+    const texto = descricao.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[._-]+/g, ' ');
+
+    // 1) Marcadores de áudio PT-BR (dublado / dual / nacional / áudio em pt)
+    if (/\b(?:dual|dublado|dublada|dublagem|nacional|brazilian)\b/.test(texto)) return 'PT-BR';
+    if (/du[ _-]*audio|audio[ _-]*pt|pt[ _-]*br/.test(texto)) return 'PT-BR';
+
+    // 2) PT-BR / português explícito
+    if (/\bpt[-_ ]?br\b|\bportugue[sse]{2}\b|\bportugues\b|\bportuguês\b/i.test(texto)) return 'PT-BR';
+
+    // 3) Legendado / subtitled => sem áudio PT-BR => EN
+    if (/\blegendad[oa]\b|\blegenda\b|\bsubtitulad[oa]\b|\bsubtitled\b/.test(texto)) return 'EN';
+
+    // 4) Multi
+    if (/\bmulti(?:language)?\b/.test(texto)) return 'Multi';
+
+    // 5) Idiomas explícitos
+    if (/\benglish\b|\beng\b|\ben\b/.test(texto)) return 'EN';
+    if (/\bspanish\b|\besp\b|\bes\b/.test(texto)) return 'ES';
+    if (/\bfrench\b|\bfr\b/.test(texto)) return 'FR';
+
     return 'PT-BR';
   }
 

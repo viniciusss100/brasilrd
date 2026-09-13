@@ -4,7 +4,7 @@ export interface EpisodeInfo {
   rawMatch: string;
 }
 
-import { isTechnicalWord } from './TechnicalWords.js';
+import { isTechnicalWord, normalizarTexto } from './TechnicalWords.js';
 
 export class EpisodeMatcher {
   private static instance: EpisodeMatcher;
@@ -72,6 +72,53 @@ export class EpisodeMatcher {
     }
 
     return false;
+  }
+
+  /**
+   * Versão que tenta usar títulos de episódios (TMDB) quando disponíveis.
+   * Se não casar por título, cai no fallback numérico (arquivoPertenceAoEpisodio).
+   * Portada do upstream BRASIL-RD-ADDON.
+   */
+  arquivoPertenceAoEpisodioComTitulos(
+    caminhoCompleto: string,
+    temporadaAlvo: number,
+    episodioAlvo: number,
+    episodeTitles?: Array<{ episodeNumber: number; namePt?: string; nameEn?: string }> | null
+  ): boolean {
+    if (!this.ehArquivoDeVideo(caminhoCompleto)) return false;
+
+    if (episodeTitles && episodeTitles.length > 0) {
+      const epData = episodeTitles.find(ep => ep.episodeNumber === episodioAlvo);
+      if (epData) {
+        const nomeArquivo = normalizarTexto(
+          this.extrairNomeArquivo(caminhoCompleto)
+            .toLowerCase()
+            .replace(/\.[^.]+$/, '')
+        );
+        const nomesNormalizados = [epData.namePt, epData.nameEn]
+          .filter((n): n is string => !!n)
+          .map(n => normalizarTexto(n))
+          .filter(n => n.length > 0);
+
+        if (nomesNormalizados.some(nome => nomeArquivo.includes(nome) || nome.includes(nomeArquivo))) {
+          return true;
+        }
+
+        // Fallback com o caminho completo (preserva temporada da pasta)
+        return this.arquivoPertenceAoEpisodio(caminhoCompleto, temporadaAlvo, episodioAlvo);
+      }
+    }
+
+    return this.arquivoPertenceAoEpisodio(caminhoCompleto, temporadaAlvo, episodioAlvo);
+  }
+
+  /** Extrai apenas o nome do arquivo final do caminho */
+  private extrairNomeArquivo(path: string): string {
+    return path.includes('/')
+      ? path.split('/').pop() || path
+      : path.includes('\\')
+        ? path.split('\\').pop() || path
+        : path;
   }
 
   // ─── METODOS PRIVADOS (V2) ───

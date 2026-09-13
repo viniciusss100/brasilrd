@@ -34,7 +34,8 @@ export const manifest = {
         configurable: true,           // Usuário pode configurar
         configurationRequired: false, // NÃO requer configuração para usar (FIX WEB)
         adult: false,                 // Conteúdo não adulto
-        p2p: true                     // Suporta modo P2P puro (opcional, via config)
+        p2p: true,                    // Suporta modo P2P puro (opcional, via config)
+        preferredAudioLanguage: 'por' // Força áudio PT-BR no Stremio Web / Nuvio
     },
     
     // Configuração (API Key do Torbox + modo P2P opcional)
