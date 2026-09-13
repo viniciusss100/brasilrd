@@ -1,7 +1,7 @@
 import { KitsuMapper } from '../catalogo/KitsuMapper.js';
 import { StreamRequest } from '../types/index.js';
 
-const ANIME_ID_REGEX = /^(kitsu|mal|myanimelist|anilist|tvdb):/i;
+const ANIME_ID_REGEX = /^(kitsu|mal|myanimelist|anilist|tvdb|tmdb):/i;
 
 export async function resolveAnimeRequest(request: StreamRequest): Promise<StreamRequest> {
     if (!ANIME_ID_REGEX.test(request.id)) return request;

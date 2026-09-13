@@ -196,7 +196,8 @@ export class CatalogProvider {
     }
 
     const torrentResults = await this.torrentScraper.searchTorrents(
-      searchQuery, type, finalSeason, seasonYear ?? undefined, imdbId || undefined, altTitles
+      searchQuery, type, finalSeason, seasonYear ?? undefined, imdbId || undefined, altTitles,
+      !!(request.alternativeTitles?.length) // anime → busca restrita ao DarkMahou
     );
 
     // ═══ Fase única: todos os scrapers rodam juntos, similarity decide ═══

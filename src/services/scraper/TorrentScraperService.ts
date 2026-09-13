@@ -40,11 +40,15 @@ export class TorrentScraperService {
         targetSeason?: number,
         targetYear?: number,
         imdbId?: string,
-        alternativeTitles?: string[]
+        alternativeTitles?: string[],
+        isAnime?: boolean // requisição originada de um ID de anime (kitsu/mal/anilist/tvdb/tmdb)
     ): Promise<TorrentResult[]> {
         const startTime = Date.now();
         try {
-            const ehAnime = type === 'anime';
+            // Anime é sempre reconhecido pelo type 'anime' OU pelo sinal do resolver (altTitles)
+            const ehAnime = type === 'anime' || isAnime === true;
+            // O WordPressScraper restringe a DarkMahou quando type === 'anime'
+            const wpType: 'movie' | 'series' | 'anime' = ehAnime ? 'anime' : type;
 
             let tmdbData = null;
             if (imdbId) {
@@ -81,9 +85,9 @@ export class TorrentScraperService {
                         this.bludvScraper.search(qEn, type).catch(() => []),
                         this.bludvScraper.search(qPt, type).catch(() => []),
                     ]),
-                    this.wpScraper.search(qEn, type).catch(() => []),
-                    ptDiferente ? this.wpScraper.search(qPt, type).catch(() => []) : Promise.resolve([]),
-                    ...altQueries.map(q => this.wpScraper.search(q, type).catch(() => []))
+                    this.wpScraper.search(qEn, wpType).catch(() => []),
+                    ptDiferente ? this.wpScraper.search(qPt, wpType).catch(() => []) : Promise.resolve([]),
+                    ...altQueries.map(q => this.wpScraper.search(q, wpType).catch(() => []))
                 ]).then(all => {
                     const seen = new Set<string>();
                     return all.flat().filter(t => {

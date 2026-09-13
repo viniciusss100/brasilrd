@@ -51,94 +51,16 @@ export class KitsuMapper {
 
     /**
      * Mapeia um ID do Kitsu para obter metadados (título e imdb_id se existir).
+     *
+     * NOTA: a API 3rd-party antiga (kitsufortheweebs.midnightignite.me) está
+     * FORA DO AR — vamos direto à API oficial do Kitsu (edge), que entrega
+     * canonicalTitle (romaji), en_jp/ja_jp e subtype.
      */
     public async mapKitsuId(kitsuId: string): Promise<KitsuMappingResult | null> {
         if (this.cache.has(kitsuId)) {
             return this.cache.get(kitsuId)!;
         }
-
-        try {
-            const parts = kitsuId.split(':');
-            const mainAnimeId = `${parts[0]}:${parts[1]}`;
-            const isEpisode = parts.length === 3;
-
-            const url = `https://kitsufortheweebs.midnightignite.me/meta/anime/${mainAnimeId}.json`;
-            const response = await axios.get(url, { timeout: 5000 });
-
-            if (!response.data || !response.data.meta) {
-                return this.mapKitsuEdgeId(kitsuId);
-            }
-
-            const meta = response.data.meta;
-            const imdbId = meta.imdb_id || null;
-            const originalTitle = meta.name || null;
-            const title = cleanAnimeTitle(originalTitle);
-            const titleSeason = extractTitleSeason(originalTitle);
-            const year = meta.releaseInfo || meta.year || null;
-            // animeType: 'Movie' -> movie, tudo mais -> series
-            const animeType: 'movie' | 'series' =
-                (meta.animeType || '').toLowerCase() === 'movie' ? 'movie' : 'series';
-            const altTitles = coletarAltTitles([
-                meta.alternateName,
-                ...(Array.isArray(meta.aliases) ? meta.aliases : []),
-            ], title);
-
-            // Enriquecimento: provider principal costuma faltar romaji/imdb.
-            // A API edge do Kitsu tem en_jp (romaji) e ja_jp — títulos que o DarkMahou usa.
-            let finalTitle = title;
-            let finalAlts = altTitles;
-            if ((!finalTitle || finalAlts.length === 0) && parts[1]) {
-                const attrs = await this.fetchKitsuEdgeAttributes(parts[1]);
-                if (attrs) {
-                    const t = attrs.titles || {};
-                    if (!finalTitle) {
-                        finalTitle = cleanAnimeTitle(attrs.canonicalTitle || t.en || t.en_jp || null);
-                    }
-                    if (finalAlts.length === 0) {
-                        finalAlts = coletarAltTitles([
-                            t.en_jp,
-                            t.ja_jp,
-                            ...(Array.isArray(attrs.abbreviatedTitles) ? attrs.abbreviatedTitles : []),
-                        ], finalTitle);
-                    }
-                }
-            }
-
-            if (!isEpisode) {
-                const result = { imdbId, title: finalTitle, altTitles: finalAlts, animeType, year };
-                this.cache.set(kitsuId, result);
-                return result;
-            }
-
-            const videos = meta.videos || [];
-            const video = videos.find((v: any) => v.id === kitsuId);
-
-            if (video) {
-                const result = {
-                    imdbId: video.imdb_id || imdbId,
-                    title: finalTitle,
-                    altTitles: finalAlts,
-                    animeType,
-                    season: titleSeason && (video.imdbSeason || video.season || 1) === 1
-                        ? titleSeason
-                        : (video.imdbSeason || video.season || 1),
-                    episode: video.imdbEpisode || video.episode,
-                    year: year
-                };
-                this.cache.set(kitsuId, result);
-                return result;
-            }
-
-            const result = { imdbId, title: finalTitle, altTitles: finalAlts, animeType, year };
-            this.cache.set(kitsuId, result);
-            return result;
-
-        } catch (error) {
-            logger.warn(`Fallback para API Kitsu no ID ${kitsuId}`, {
-                error: error instanceof Error ? error.message : 'Desconhecido'
-            });
-            return this.mapKitsuEdgeId(kitsuId);
-        }
+        return this.mapKitsuEdgeId(kitsuId);
     }
 
     /** Busca atributos do anime na API edge oficial do Kitsu. */
@@ -195,7 +117,7 @@ export class KitsuMapper {
         const provider = id.split(':', 1)[0].toLowerCase();
         if (provider === 'kitsu') return this.mapKitsuId(id);
 
-        if (!['mal', 'myanimelist', 'anilist', 'tvdb'].includes(provider)) return null;
+        if (!['mal', 'myanimelist', 'anilist', 'tvdb', 'tmdb'].includes(provider)) return null;
         if (this.cache.has(id)) return this.cache.get(id)!;
 
         const match = id.match(/^[^:]+:(\d+)(?::(\d+))?(?::(\d+))?$/);
@@ -206,7 +128,9 @@ export class KitsuMapper {
                 ? await this.mapAniListId(match[1])
                 : provider === 'tvdb'
                     ? await this.mapTvdbId(match[1])
-                    : await this.mapMyAnimeListId(match[1]);
+                    : provider === 'tmdb'
+                        ? await this.mapTmdbId(match[1])
+                        : await this.mapMyAnimeListId(match[1]);
 
             if (!mapping) return null;
 
@@ -274,17 +198,100 @@ export class KitsuMapper {
     }
 
     private async mapTvdbId(id: string): Promise<KitsuMappingResult | null> {
-        const { data } = await axios.get(`https://v3-cinemeta.strem.io/meta/series/tvdb:${id}.json`, { timeout: 5000 });
-        const meta = data?.meta;
-        if (!meta) return null;
+        const key = this.tmdbApiKey;
+        if (key) {
+            try {
+                // TVDB -> TMDB via Find API (robusto), depois título + IMDb via TMDB
+                const find = await this.tmdbFetch(`/find/${id}`, { external_source: 'tvdb_id' });
+                const tv = find?.tv_results?.[0];
+                const movie = find?.movie_results?.[0];
+                const mediaId = tv?.id ?? movie?.id;
+                if (mediaId !== undefined) {
+                    const media = await this.fetchTmdbMedia(String(mediaId));
+                    if (media?.name) return this.buildFromTmdbMedia(media);
+                }
+            } catch (error) {
+                logger.warn('TMDB find (tvdb) falhou, tentando cinemeta', { error: (error as Error).message });
+            }
+        }
 
+        // Fallback legado: cinemeta strem.io
+        try {
+            const { data } = await axios.get(`https://v3-cinemeta.strem.io/meta/series/tvdb:${id}.json`, { timeout: 8000 });
+            const meta = data?.meta;
+            if (!meta) return null;
+            return {
+                imdbId: meta.imdb_id || null,
+                title: meta.name || null,
+                altTitles: coletarAltTitles(Array.isArray(meta.aliases) ? meta.aliases : [], meta.name || null),
+                animeType: meta.type === 'movie' ? 'movie' : 'series',
+                year: meta.releaseInfo || meta.year || null,
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    /** Suporte a IDs do TMDB diretamente (xperience/jellyfin catalogam animes por tmdb). */
+    private async mapTmdbId(id: string): Promise<KitsuMappingResult | null> {
+        const media = await this.fetchTmdbMedia(id);
+        if (!media?.name) return null;
+        return this.buildFromTmdbMedia(media);
+    }
+
+    private async buildFromTmdbMedia(media: { name: string | null; imdbId: string | null; year: string | undefined; animeType: 'movie' | 'series' }): Promise<KitsuMappingResult> {
+        const title = cleanAnimeTitle(media.name);
         return {
-            imdbId: meta.imdb_id || null,
-            title: meta.name || null,
-            altTitles: coletarAltTitles(
-                Array.isArray(meta.aliases) ? meta.aliases : [], meta.name || null),
-            animeType: meta.type === 'movie' ? 'movie' : 'series',
-            year: meta.releaseInfo || meta.year || null,
+            imdbId: media.imdbId,
+            title,
+            // Tenta incluir o título original (romaji/JP) como alternativo para o DarkMahou
+            altTitles: [],
+            animeType: media.animeType,
+            season: extractTitleSeason(media.name),
+            year: media.year,
         };
+    }
+
+    private get tmdbApiKey(): string {
+        return (process.env.TMDB_API_KEY || '').trim();
+    }
+
+    private async tmdbFetch(url: string, extraParams: Record<string, string> = {}): Promise<any> {
+        const key = this.tmdbApiKey;
+        if (!key) return null;
+        const { data } = await axios.get(`https://api.themoviedb.org/3${url}`, {
+            timeout: 6000,
+            params: { api_key: key, language: 'pt-BR', ...extraParams },
+        });
+        return data;
+    }
+
+    /** Busca título/imdb/ano de um ID TMDB (TV ou Movie). */
+    private async fetchTmdbMedia(tmdbId: string): Promise<{ name: string | null; imdbId: string | null; year: string | undefined; animeType: 'movie' | 'series' } | null> {
+        try {
+            const tv = await this.tmdbFetch(`/tv/${tmdbId}`, { include_image_language: '' });
+            if (tv && tv.id) {
+                const ext = await this.tmdbFetch(`/tv/${tmdbId}/external_ids`).catch(() => null);
+                return {
+                    name: tv.name || tv.original_name || null,
+                    imdbId: ext?.imdb_id || null,
+                    year: tv.first_air_date?.slice(0, 4) ?? undefined,
+                    animeType: 'series',
+                };
+            }
+        } catch { /* try movie */ }
+        try {
+            const movie = await this.tmdbFetch(`/movie/${tmdbId}`, { include_image_language: '' });
+            if (movie && movie.id) {
+                const ext = await this.tmdbFetch(`/movie/${tmdbId}/external_ids`).catch(() => null);
+                return {
+                    name: movie.title || movie.original_title || null,
+                    imdbId: ext?.imdb_id || null,
+                    year: movie.release_date?.slice(0, 4) ?? undefined,
+                    animeType: 'movie',
+                };
+            }
+        } catch { /* ignore */ }
+        return null;
     }
 }
