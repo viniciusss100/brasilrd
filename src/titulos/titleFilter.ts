@@ -79,9 +79,16 @@ export class TitleFilter {
 
         // 2. Valida episódio (se aplicável)
         if (episodioAlvo !== undefined) {
-          // Se tem temporada detectada mas não tem episódio → provável pack de temporada
-          if (metadados.season && metadados.episode === undefined && !metadados.isCompleteSeason) {
-            // Deixa passar — SimilarityCalculator decide se é compatível
+          const temTemporada = metadados.season !== undefined;
+          const temEpisodio = metadados.episode !== undefined;
+
+          if (temTemporada && !temEpisodio) {
+            // Pack de temporada confirmado (ex: "S01E01-24", "1ª Temporada completa")
+            // → SimilarityCalculator decide se o título bate.
+          } else if (!temTemporada && !temEpisodio) {
+            // Sem marcação de temporada/episódio → provável pack completo/coletânea
+            // (ex: "Detective Conan" sem S/E). O título precisa bater (similarity).
+            // O resolver (Torbox) escolhe o arquivo do episódio pedido dentro do pack.
           } else {
             const compat = this.episodeMatcher.episodioEhCompativel(
               tituloTorrent, metadados.episode, episodioAlvo, temporadaAlvo
