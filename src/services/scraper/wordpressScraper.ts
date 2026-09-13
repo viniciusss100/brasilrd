@@ -120,7 +120,7 @@ export class WordPressScraper {
     this.qualityDetector = new QualityDetector();
   }
 
-  async search(query: string, type: 'movie' | 'series' | 'anime'): Promise<TorrentResult[]> {
+  async search(query: string, type: 'movie' | 'series' | 'anime', targetSeason?: number): Promise<TorrentResult[]> {
     const results: TorrentResult[] = [];
     // Animes são indexados APENAS pelo DarkMahou (romaji/native).
     // Para os demais tipos, consulta todos os sites ativos.
@@ -131,7 +131,7 @@ export class WordPressScraper {
       .sort((a, b) => b.priority - a.priority);
 
     const promises = activeSites.map(site =>
-      this.searchSite(site, query, type).then(r => {
+      this.searchSite(site, query, type, targetSeason).then(r => {
         return r;
       }).catch(err => {
         logger.warn(` WP ${site.name} FALHOU`, { query: query.substring(0, 60), error: err.code || err.message });
@@ -147,7 +147,8 @@ export class WordPressScraper {
   async searchSite(
     site: WordPressSite,
     query: string,
-    type: 'movie' | 'series' | 'anime'
+    type: 'movie' | 'series' | 'anime',
+    targetSeason?: number
   ): Promise<TorrentResult[]> {
     // WordPress search é ruinzinho com números e caracteres especiais.
     // "Rick Morty Temporada 4" não acha "4ª Temporada".
@@ -200,13 +201,42 @@ export class WordPressScraper {
 
       if (!Array.isArray(response.data)) return { results: [], postsFound: false };
 
+      // Prioriza posts da temporada alvo (ex: pedido S2 deve processar
+      // "… 2ª Temporada" ANTES da "4ª Temporada" — hoje a 4ª enchia o cap e
+      // a 2ª nunca era processada).
+      if (targetSeason !== undefined) {
+        const extrairPostSeason = (t: string): number | undefined => {
+          const m = t.toLowerCase().match(/(\d{1,2})\s*[ªº°]?\s*(?:temporada|temp|season)|(\d{1,2})\s*(?:st|nd|rd|th)\s+(?:tempo|seas|temporada)|(?:season|temporada|temp)\s*(\d{1,2})/);
+          if (!m) return undefined;
+          return Number(m[1] || m[2] || m[3]);
+        };
+        response.data.sort((a: any, b: any) => {
+          const sa = extrairPostSeason(a.title?.rendered || '');
+          const sb = extrairPostSeason(b.title?.rendered || '');
+          const pa = sa === targetSeason ? 0 : 2;
+          const pb = sb === targetSeason ? 0 : 2;
+          if (pa !== pb) return pa - pb;
+          if (sa === undefined && sb === undefined) return 0;
+          if (sa === undefined) return 1;
+          if (sb === undefined) return -1;
+          return sa - sb;
+        });
+      }
+
       const totalMagnets = response.data.reduce((sum: number, p: any) => sum + ((p.content?.rendered || '').match(/magnet:/g) || []).length, 0);
       logger.info(`WP ${site.name}: ${totalMagnets} magnets em N/A para "${term}"`);
 
       const results: TorrentResult[] = [];
       // Limite por termo para não estourar o timeout global do buscador
-      const MAX_RESULTS_PER_TERM = 25;
+      const MAX_RESULTS_PER_TERM = 30;
+      // Limita o número de posts processados por termo (cada post relevante
+      // do DarkMahou custa um fetch do frontend). Terms de fallback são mais
+      // agressivos (7 posts); o termo principal pode varrer mais.
+      const maxPosts = term === searchQuery ? 15 : 7;
+      let postIdx = 0;
       for (const post of response.data) {
+        postIdx++;
+        if (postIdx > maxPosts) break;
         if (results.length >= MAX_RESULTS_PER_TERM) break;
         try {
           const postTitle = (post.title?.rendered || '').toLowerCase();
@@ -320,10 +350,12 @@ export class WordPressScraper {
 
     // Se ainda não tem magnet, tenta buscar a página HTML do post diretamente
     // (Sites como DarkMahou escondem os magnets da resposta da REST API e só renderizam no front)
-    if (!magnetLinks.length && post.link) {
+    // Posts IRRELEVANTES pulam o fetch do frontend — seriam descartados mesmo
+    // e o fetch é caro (vários posts = timeout).
+    if (!magnetLinks.length && post.link && (postIsRelevant || !queryWords || queryWords.length === 0)) {
       try {
         const htmlRes = await axios.get(post.link, {
-          timeout: 8000,
+          timeout: 5000,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
           },
@@ -352,12 +384,17 @@ export class WordPressScraper {
     const elementos = magnetLinks.toArray();
     // Posts genéricos (Listão) podem ter 700+ magnets — limita para não processar tudo
     const MAX_GENERIC_MAGNETS = 50;
+    // Posts relevantes também têm limite (S4 do ReZero tinha 76 magnets e
+    // atrasava o fluxo inteiro); o pack/resolver resolve o episódio certo depois.
+    const MAX_MAGNETS_RELEVANT = 18;
     let scannedGeneric = 0;
+    let extractedRelevant = 0;
 
     for (const el of elementos) {
       // Se post não é relevante e já escaneamos muitos magnets, para
       if (!postIsRelevant && scannedGeneric >= MAX_GENERIC_MAGNETS) break;
       if (!postIsRelevant) scannedGeneric++;
+      if (postIsRelevant && extractedRelevant >= MAX_MAGNETS_RELEVANT) break;
 
       const magnet = $(el).attr('href');
       if (!magnet) continue;
@@ -421,6 +458,7 @@ export class WordPressScraper {
         lastUpdated: new Date(post.date || Date.now()),
         confidence: 0.85,
       });
+      if (postIsRelevant) extractedRelevant++;
     }
 
     return results;

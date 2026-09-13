@@ -85,9 +85,9 @@ export class TorrentScraperService {
                         this.bludvScraper.search(qEn, type).catch(() => []),
                         this.bludvScraper.search(qPt, type).catch(() => []),
                     ]),
-                    this.wpScraper.search(qEn, wpType).catch(() => []),
-                    ptDiferente ? this.wpScraper.search(qPt, wpType).catch(() => []) : Promise.resolve([]),
-                    ...altQueries.map(q => this.wpScraper.search(q, wpType).catch(() => []))
+                    this.wpScraper.search(qEn, wpType, targetSeason).catch(() => []),
+                    ptDiferente ? this.wpScraper.search(qPt, wpType, targetSeason).catch(() => []) : Promise.resolve([]),
+                    ...altQueries.map(q => this.wpScraper.search(q, wpType, targetSeason).catch(() => []))
                 ]).then(all => {
                     const seen = new Set<string>();
                     return all.flat().filter(t => {

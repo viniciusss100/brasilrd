@@ -372,8 +372,23 @@ export class SimilarityCalculator {
       return { passou: false, motivo: `Coletânea: match baixo ${melhor.encontradas}/${melhor.totalTmdb} palavras. Faltando: [${melhor.faltando.join(', ')}]` };
     }
 
-    // Se não tem ano pra validar → NENHUM extra tolerado
-    if (semAno && extras > 0) {
+    // Se não tem ano pra validar → aceita quando o título bate com força.
+    // Séries/animes (especialmente romaji e packs) muitas vezes omitem o ano e
+    // acrescentam palavras (ex: "Re:Zero kara Hajimeru Isekai Seikatsu 2ª
+    // Temporada" vs TMDB "Re:ZERO -Starting Life in Another World-"). Exigimos
+    // ≥2 tokens do título TMDB para não aceitar títulos que só compartilham
+    // uma palavra genérica ("… Zero", "… Dia 1", etc.).
+    if (semAno) {
+      const maxSemAno = 8;
+      // Exige que a PRIMEIRA palavra do título TMDB (nome do show) esteja
+      // presente — discrimina "Fate/Zero" vs "Re:Zero" (ambos têm "zero",
+      // mas só o Re:Zero tem "re"). Títulos TMDB de 1 palavra (ex:
+      // "MARRIAGETOXIN") exigem apenas essa palavra.
+      const primeiraBate = melhor.palavrasTmdb.length > 0 && !melhor.faltando.includes(melhor.palavrasTmdb[0]);
+      const minEncontradas = melhor.totalTmdb <= 1 ? 1 : 2;
+      if (melhor.encontradas >= minEncontradas && primeiraBate && extras <= maxSemAno) {
+        return { passou: true, motivo: `Sem ano: ${melhor.encontradas}/${melhor.totalTmdb} palavras casam (até ${extras} extras)` };
+      }
       return { passou: false, motivo: `Sem ano para validar + ${extras} palavra(s) extra(s) no torrent → título diferente` };
     }
 
