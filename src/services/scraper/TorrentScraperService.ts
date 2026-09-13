@@ -10,7 +10,7 @@ import { EpisodeMatcher } from '../../titulos/episodeMatcher.js';
 
 const logger = new Logger('TorrentScraperService');
 
-const SOURCE_TIMEOUT_MS = 9000;
+const SOURCE_TIMEOUT_MS = 20000;
 
 function withTimeout<T>(promise: Promise<T>, fallback: T, ms: number = SOURCE_TIMEOUT_MS): Promise<T> {
     return Promise.race([

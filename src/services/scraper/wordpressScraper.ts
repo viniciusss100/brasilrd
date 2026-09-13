@@ -21,6 +21,9 @@ const LEGENDADO_REGEX = new RegExp(
 
 const logger = new Logger('WordPressScraper');
 
+// Limite total agregado dos termos de fallback (query curta) por site
+const MAX_FALLBACK_RESULTS = 60;
+
 // Força DNS público para bypass de bloqueios de operadora
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
@@ -158,61 +161,104 @@ export class WordPressScraper {
       .trim();
 
     const searchQuery = cleanQuery || query; // fallback pro original se limpar tudo
-    const encodedQuery = encodeURIComponent(searchQuery);
-    const apiUrl = `${site.baseUrl}/wp-json/wp/v2/posts?search=${encodedQuery}&per_page=15&_fields=id,title,link,content,excerpt,date`;
 
-    // DNS bypass + Crawlee-style anti-bot headers
-    const response = await axios.get(apiUrl, {
-      timeout: site.timeout,
-      httpsAgent: dnsAgent,
-      lookup: lookupCustomizado,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.5',
-        'Cache-Control': 'no-cache',
-        'Sec-Ch-Ua': '"Chromium";v="150"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-      },
-      validateStatus: (s) => s < 500,
-    });
+    // Fallback de busca curta: sites BR (ex: DarkMahou) indexam por romaji/slug.
+    // Queries longas em inglês (ex: "re zero starting life in another world")
+    // => 0 posts, mas "re zero" acha o post. Tenta cortar palavras da direita
+    // (4→3→2 primeiras palavras) até encontrar posts.
+    const tokens = searchQuery.split(/\s+/).filter(Boolean);
+    const shortCandidates: string[] = [];
+    if (tokens.length > 3) {
+      for (let n = Math.min(4, tokens.length - 1); n >= 2; n--) {
+        const cand = tokens.slice(0, n).join(' ').trim();
+        if (cand && !shortCandidates.includes(cand)) shortCandidates.push(cand);
+      }
+    }
 
-    if (!Array.isArray(response.data)) return [];
-
-    const totalMagnets = response.data.reduce((sum: number, p: any) => sum + ((p.content?.rendered || '').match(/magnet:/g) || []).length, 0);
-    logger.info(`WP ${site.name}: ${totalMagnets} magnets em N/A para "${searchQuery}"`);
-
-    const results: TorrentResult[] = [];
     const queryWords = searchQuery.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !/^(de|do|da|dos|das|e|a|o|em|no|na|os|as|um|uma|the|of|and|or|in|on|at|to|for|is|it)$/i.test(w));
-    for (const post of response.data) {
-      try {
-        const postTitle = (post.title?.rendered || '').toLowerCase();
-        
-        // Pula posts "Listão" — compilações genéricas sem labels individuais nos magnets
-        if (/\blist[aã]o\b/i.test(postTitle)) {
-          logger.debug(`WP ${site.name}: pulando post listão "${(post.title?.rendered || '').substring(0, 50)}"`);
-          continue;
+
+    const processTerm = async (term: string): Promise<{ results: TorrentResult[]; postsFound: boolean }> => {
+      const encodedQuery = encodeURIComponent(term);
+      const apiUrl = `${site.baseUrl}/wp-json/wp/v2/posts?search=${encodedQuery}&per_page=15&_fields=id,title,link,content,excerpt,date`;
+
+      // DNS bypass + Crawlee-style anti-bot headers
+      const response = await axios.get(apiUrl, {
+        timeout: site.timeout,
+        httpsAgent: dnsAgent,
+        lookup: lookupCustomizado,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.5',
+          'Cache-Control': 'no-cache',
+          'Sec-Ch-Ua': '"Chromium";v="150"',
+          'Sec-Ch-Ua-Mobile': '?0',
+          'Sec-Ch-Ua-Platform': '"Windows"',
+        },
+        validateStatus: (s) => s < 500,
+      });
+
+      if (!Array.isArray(response.data)) return { results: [], postsFound: false };
+
+      const totalMagnets = response.data.reduce((sum: number, p: any) => sum + ((p.content?.rendered || '').match(/magnet:/g) || []).length, 0);
+      logger.info(`WP ${site.name}: ${totalMagnets} magnets em N/A para "${term}"`);
+
+      const results: TorrentResult[] = [];
+      // Limite por termo para não estourar o timeout global do buscador
+      const MAX_RESULTS_PER_TERM = 25;
+      for (const post of response.data) {
+        if (results.length >= MAX_RESULTS_PER_TERM) break;
+        try {
+          const postTitle = (post.title?.rendered || '').toLowerCase();
+          
+          // Pula posts "Listão" — compilações genéricas sem labels individuais nos magnets
+          if (/\blist[aã]o\b/i.test(postTitle)) {
+            logger.debug(`WP ${site.name}: pulando post listão "${(post.title?.rendered || '').substring(0, 50)}"`);
+            continue;
+          }
+          
+          // Post é relevante se título contém palavras da query.
+          // Queries curtas (≤2 palavras): exige match no TÍTULO (excerpt é ruidoso).
+          // Queries longas: título OU excerpt bastam.
+          const postExcerpt = (post.excerpt?.rendered || '').toLowerCase();
+          let postIsRelevant: boolean;
+          if (queryWords.length === 0) {
+            postIsRelevant = true;
+          } else if (queryWords.length <= 2) {
+            // Query curta: pelo menos UMA palavra no TÍTULO (ignora excerpt)
+            postIsRelevant = queryWords.some(w => postTitle.includes(w));
+          } else {
+            // Query longa: basta UMA palavra no título OU excerpt
+            postIsRelevant = queryWords.some(w => postTitle.includes(w) || postExcerpt.includes(w));
+          }
+          const extracted = await this.extractMagnetsFromPost(post, site.name, type, queryWords, postIsRelevant);
+          results.push(...extracted);
+        } catch {
+          // Post individual com problema, ignora
         }
-        
-        // Post é relevante se título contém palavras da query.
-        // Queries curtas (≤2 palavras): exige match no TÍTULO (excerpt é ruidoso).
-        // Queries longas: título OU excerpt bastam.
-        const postExcerpt = (post.excerpt?.rendered || '').toLowerCase();
-        let postIsRelevant: boolean;
-        if (queryWords.length === 0) {
-          postIsRelevant = true;
-        } else if (queryWords.length <= 2) {
-          // Query curta: pelo menos UMA palavra no TÍTULO (ignora excerpt)
-          postIsRelevant = queryWords.some(w => postTitle.includes(w));
-        } else {
-          // Query longa: basta UMA palavra no título OU excerpt
-          postIsRelevant = queryWords.some(w => postTitle.includes(w) || postExcerpt.includes(w));
+      }
+
+      return { results, postsFound: response.data.length > 0 };
+    };
+
+    // 1) Tenta a query completa
+    const primeiro = await processTerm(searchQuery);
+    const results = [...primeiro.results];
+
+    // 2) Se a busca completa não achou NENHUM post, tenta termos curtos
+    //    ("re zero starting life in another world" → "re zero starting life in another" → ... → "re zero")
+    if (!primeiro.postsFound) {
+      for (const cand of shortCandidates) {
+        if (results.length >= MAX_FALLBACK_RESULTS) break;
+        logger.debug(`WP ${site.name}: busca "${searchQuery}" sem posts — tentando termo curto "${cand}"`);
+        try {
+          const tentativa = await processTerm(cand);
+          results.push(...tentativa.results);
+          // Se o termo curto achou posts, para (evita mais chamadas lentas)
+          if (tentativa.postsFound) break;
+        } catch (err) {
+          logger.warn(` WP ${site.name} short FALHOU`, { query: cand.substring(0, 60), error: (err as any).code || (err as Error).message });
         }
-        const extracted = await this.extractMagnetsFromPost(post, site.name, type, queryWords, postIsRelevant);
-        results.push(...extracted);
-      } catch {
-        // Post individual com problema, ignora
       }
     }
 

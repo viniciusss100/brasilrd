@@ -1,5 +1,6 @@
 // Scraper dedicado do BLUDV — HTML scraping direto (sem WordPress API)
 // Extrai magnets, Áudio:, Qualidade:, Tamanho: e episódios do conteúdo do post
+// NOTA: o domínio migrou de bludvfilmes.xyz -> bludvfilmes1.xyz (o antigo faz 301).
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { Logger } from '../../utils/logger.js';
@@ -11,7 +12,7 @@ import { agenteHttps as dnsAgent, lookupCustomizado } from './wordpressScraper.j
 
 const logger = new Logger('BludvScraper');
 
-const BASE_URL = 'https://bludvfilmes.xyz';
+const BASE_URL = 'https://bludvfilmes1.xyz';
 const PROVIDER = 'BLUDV Filmes';
 const AXIOS_OPTS = {
   timeout: 15000,
@@ -66,9 +67,9 @@ export class BludvScraper {
     // Categorias/tags são curtas: /filmes/, /series/, /lancamento/2024/, /resolucao/1080p/
     $('a[href]').each((_, el) => {
       const href = ($(el).attr('href') || '').trim();
-      if (!href.includes('bludvfilmes.xyz')) return;
+      if (!href.includes('bludvfilmes')) return;
       
-      const path = href.replace(/^https?:\/\/bludvfilmes\.xyz/, '').replace(/\/$/, '');
+      const path = href.replace(/^https?:\/\/bludvfilmes1?\.xyz/, '').replace(/\/$/, '');
       const segments = path.split('/').filter(Boolean);
       
       // Post: 1 segmento longo e descritivo com hífens
