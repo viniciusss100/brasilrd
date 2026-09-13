@@ -1,0 +1,33 @@
+# Repositório / VCS
+.git
+.gitignore
+
+# Dependências e build
+node_modules
+dist
+release
+
+# Dados locais / cache (inclui storage/postgres do container Postgres)
+storage
+data
+logs
+puppeteer-profile
+screenshots
+
+# Segredos e config local
+.env
+.env.*
+!.env.example
+compose.yml
+ecosystem.config.js
+
+# Certificados SSL locais
+localhost.*
+*.crt
+*.key
+
+# Extras
+*.log
+.DS_Store
+Thumbs.db
+.vercelignore
