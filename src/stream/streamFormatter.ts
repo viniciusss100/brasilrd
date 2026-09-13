@@ -45,7 +45,8 @@ export class StreamFormatter {
     metadata?: EnhancedSeriesMetadata,
     isDirect: boolean = false,
     quality?: string,
-    dataUpload?: string
+    dataUpload?: string,
+    flags?: string
   ): string {
     // PRIMEIRA LINHA: Titulo canonico do magnet (dn do parse-torrent)
     let result = torrentTitle.trim();
@@ -78,7 +79,8 @@ export class StreamFormatter {
     if (infoTecnica.audio) {
       terceiraLinha.push(`🎧 ${infoTecnica.audio}`);
     }
-    terceiraLinha.push(`🌐 ${this.formatarIdioma(language || 'PT-BR')}`);
+    const idiomaLabel = this.formatarIdioma(language || 'PT-BR');
+    terceiraLinha.push(`🌐 ${idiomaLabel}${flags ? ' ' + flags : ''}`);
     if (dataUpload) {
       terceiraLinha.push(`📅 ${dataUpload}`);
     }
@@ -337,7 +339,8 @@ export class StreamFormatter {
     const seedsMatch = descricao.match(/(\d+)\s*seeds?/i);
     const sizeMatch = descricao.match(/(\d+(?:\.\d+)?)\s*(GB|MB|TB)/i);
     const idiomaDaDescricao = this.extrairIdiomaDaDescricao(descricao);
-    
+    const bandeirasIdioma = this.extrairBandeirasDaDescricao(descricao);
+
     const seeds = seedsMatch ? parseInt(seedsMatch[1]) : 0;
     const tamanho = sizeMatch ? `${sizeMatch[1]} ${sizeMatch[2]}` : undefined;
 
@@ -354,7 +357,8 @@ export class StreamFormatter {
       metadata,
       true, // isDirect
       qualidadeReal,
-      dataUpload
+      dataUpload,
+      bandeirasIdioma
     );
 
     // Stream no formato Stremio
@@ -427,7 +431,8 @@ export class StreamFormatter {
     const seedsMatch = descricao.match(/(\d+)\s*seeds?/i);
     const sizeMatch = descricao.match(/(\d+(?:\.\d+)?)\s*(GB|MB|TB)/i);
     const idiomaDaDescricao = this.extrairIdiomaDaDescricao(descricao);
-    
+    const bandeirasIdioma = this.extrairBandeirasDaDescricao(descricao);
+
     const seeds = seedsMatch ? parseInt(seedsMatch[1]) : 0;
     const tamanho = sizeMatch ? `${sizeMatch[1]} ${sizeMatch[2]}` : undefined;
     
@@ -441,7 +446,8 @@ export class StreamFormatter {
       metadata,
       false, // isDirect
       qualidadeReal,
-      dataUpload
+      dataUpload,
+      bandeirasIdioma
     );
 
     // Gera URL de resolve
@@ -553,6 +559,36 @@ export class StreamFormatter {
     if (/\bfrench\b|\bfr\b/.test(texto)) return 'FR';
 
     return 'PT-BR';
+  }
+
+  // Extrai as bandeiras de idioma para exibição no título.
+  // O AIOStreams/StremThru extraem idioma do stream pelas FLAGS de países no
+  // título (getLanguages). "Dual Audio" sem flags cai em NON_SPECIFIC_LANGUAGES
+  // e é rebaixado no filtro de idioma — aqui expomos explicitamente PT+EN etc.
+  private extrairBandeirasDaDescricao(descricao: string): string {
+    if (!descricao) return '🇧🇷';
+
+    const texto = descricao.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[._-]+/g, ' ');
+
+    // Dual = áudio PT-BR + original (geralmente EN)
+    if (/\bdual\b|du[ _-]*audio|dual[ _-]*lang/.test(texto)) return '🇧🇷 🇺🇸';
+
+    const bandeiras: string[] = [];
+    if (/\bpt[-_ ]?br\b|portugues\b|portuguese\b|brazilian\b|dublad[oa]\b|dublagem|nacional\b/.test(texto)) bandeiras.push('🇧🇷');
+    if (/\bjapanese\b|\bjap\b|\bjpn\b/.test(texto)) bandeiras.push('🇯🇵');
+    if (/\benglish\b|\beng\b|\ben\b|\blegendad[oa]\b|\blegenda\b|\bsubbed\b/.test(texto)) bandeiras.push('🇺🇸');
+    if (/\bspanish\b|\besp\b|\bes\b/.test(texto)) bandeiras.push('🇪🇸');
+    if (/\bfrench\b|\bfr\b/.test(texto)) bandeiras.push('🇫🇷');
+
+    if (bandeiras.length > 0) return bandeiras.join(' ');
+
+    // Multi sem idiomas específicos no texto -> fica sem flags (genérico)
+    if (/\bmulti(?:language)?\b/.test(texto)) return '';
+
+    // Padrão do addon é PT-BR
+    return '🇧🇷';
   }
 
   // Cria streams separados para cada qualidade - MÉTODO PRINCIPAL CORRIGIDO
