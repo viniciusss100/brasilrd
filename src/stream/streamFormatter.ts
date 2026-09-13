@@ -198,6 +198,27 @@ export class StreamFormatter {
     return undefined;
   }
 
+  // Extrai o tamanho exato em bytes a partir de um valor numérico ou string
+  // ("2.5 GB", "900 MB", "1,2 TB"). Usado no behaviorHints.videoSize para que
+  // consumidores (aiostreams/Nuvio/Jellyfin) exibam o tamanho corretamente.
+  private extrairTamanhoBytes(tamanho?: number | string): number | undefined {
+    if (tamanho === undefined || tamanho === null) return undefined;
+    if (typeof tamanho === 'number') {
+      return Number.isFinite(tamanho) && tamanho > 0 ? Math.round(tamanho) : undefined;
+    }
+    const texto = String(tamanho).trim();
+    const m = texto.match(/^(\d+(?:[.,]\d+)?)\s*(KB|MB|GB|TB)\b/i);
+    if (!m) return undefined;
+    const valor = parseFloat(m[1].replace(',', '.'));
+    if (isNaN(valor) || valor <= 0) return undefined;
+    const unidade = m[2].toUpperCase();
+    const multiplicador = unidade === 'TB' ? 1024 ** 4
+      : unidade === 'GB' ? 1024 ** 3
+      : unidade === 'MB' ? 1024 ** 2
+      : 1024;
+    return Math.round(valor * multiplicador);
+  }
+
   // Adiciona a qualidade real ao titulo caso ele nao a mencione
   private atualizarQualidadeNoTitulo(titulo: string, qualidade: string): string {
     const regexQualidade = new RegExp(`\\b${qualidade}\\b`, 'i');
@@ -300,7 +321,8 @@ export class StreamFormatter {
     metadata?: EnhancedSeriesMetadata,
     fileIdx?: number,
     debridAtivo: boolean = false,
-    dataUpload?: string
+    dataUpload?: string,
+    tamanhoBytes?: number // tamanho exato em bytes (videoSize p/ consumidores)
   ): Promise<Stream> {
     /* DEBUG SILENCIOSO
     this.logger.debug('CRIANDO_STREAM_DIRETO', { 
@@ -349,9 +371,10 @@ export class StreamFormatter {
       stream.behaviorHints = {
         notWebReady: false,
         bingeGroup: `br-${tipo || 'movie'}-${qualidadeReal}`,
-        filename: this.sanitizarNomeArquivo(tituloFinal.split('\n')[0]),
+        filename: this.sanitizarNomeArquivo(tituloFinal.split('\n')[0]).trim(),
         streamQuality: qualidadeReal,
         preferredAudioLanguage: 'por',
+        ...(tamanhoBytes !== undefined ? { videoSize: tamanhoBytes } : {}),
         ...behaviorHints
       };
     }
@@ -375,7 +398,8 @@ export class StreamFormatter {
     fileIdx?: number,
     p2p: boolean = false,
     emCache: boolean = false,
-    dataUpload?: string
+    dataUpload?: string,
+    tamanhoBytes?: number // tamanho exato em bytes (videoSize p/ consumidores)
   ): Promise<Stream> {
     /* DEBUG SILENCIOSO
     this.logger.debug('CRIANDO_STREAM_LAZY', { 
@@ -472,9 +496,10 @@ export class StreamFormatter {
       stream.behaviorHints = {
         notWebReady: false,
         bingeGroup: `br-${tipo || 'movie'}-${qualidadeReal}`,
-        filename: this.sanitizarNomeArquivo(tituloFinal.split('\n')[0]),
+        filename: this.sanitizarNomeArquivo(tituloFinal.split('\n')[0]).trim(),
         streamQuality: qualidadeReal,
         preferredAudioLanguage: 'por',
+        ...(tamanhoBytes !== undefined ? { videoSize: tamanhoBytes } : {}),
         ...behaviorHints
       };
     }
@@ -583,14 +608,12 @@ export class StreamFormatter {
 
     const streams: Stream[] = [];
     const metadata = this.metadataExtractor.extractEnhancedMetadata(tituloFonte);
-    const tagEpisodio = tipo === 'series' && temporada && episodio 
-      ? `S${temporada.toString().padStart(2, '0')}E${episodio.toString().padStart(2, '0')}`
-      : '';
 
     // Cria stream SEPARADO para cada qualidade
     for (const qualidade of todasQualidades) {
       // DESCRIÇÃO base com seeds, tamanho (formatado) e idioma
       const tamanhoFormatado = this.formatarTamanho(torrent.size);
+      const tamanhoBytes = this.extrairTamanhoBytes(torrent.size);
       const descricaoBase = `${tituloFonte}\n${torrent.seeders || 0} seeds | ${tamanhoFormatado || 'N/A'} | ${this.formatarIdioma(torrent.language || 'PT-BR')}`;
       
       // TÍTULO COMPLETO do torrent (não modificado)
@@ -607,13 +630,13 @@ export class StreamFormatter {
           temporada,
           episodio,
           {
-            bingeGroup: `br-${request.id}-${qualidade}`,
-            filename: this.sanitizarNomeArquivo(`${tituloFonte} ${tagEpisodio}`)
+            bingeGroup: `br-${request.id}-${qualidade}`
           },
           metadata,
           fileIdx,
           debridAtivo,
-          dataUpload
+          dataUpload,
+          tamanhoBytes
         ));
       } else {
         // Stream lazy com magnet
@@ -628,14 +651,14 @@ export class StreamFormatter {
           temporada,
           episodio,
           {
-            bingeGroup: `br-${request.id}-${qualidade}`,
-            filename: this.sanitizarNomeArquivo(`${tituloFonte} ${tagEpisodio}`)
+            bingeGroup: `br-${request.id}-${qualidade}`
           },
           metadata,
           fileIdx,
           !!request.config?.p2p,
           cachedNoDebrid,
-          dataUpload
+          dataUpload,
+          tamanhoBytes
         ));
       }
       
@@ -797,11 +820,14 @@ export class StreamFormatter {
       temporada,
       episodio,
       {
-        bingeGroup: `br-${request.id}-${qualidade}`,
-        filename: this.sanitizarNomeArquivo(torrent.title)
+        bingeGroup: `br-${request.id}-${qualidade}`
       },
       undefined,
-      fileIdx
+      fileIdx,
+      false,
+      false,
+      undefined,
+      this.extrairTamanhoBytes(torrent.size)
     );
   }
 
@@ -829,11 +855,14 @@ export class StreamFormatter {
       undefined,
       undefined,
       {
-        bingeGroup: `br-${request.id}-${qualidade}`,
-        filename: this.sanitizarNomeArquivo(torrent.title)
+        bingeGroup: `br-${request.id}-${qualidade}`
       },
       undefined,
-      fileIdx
+      fileIdx,
+      false,
+      false,
+      undefined,
+      this.extrairTamanhoBytes(torrent.size)
     );
   }
 

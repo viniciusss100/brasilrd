@@ -119,7 +119,13 @@ export class WordPressScraper {
 
   async search(query: string, type: 'movie' | 'series' | 'anime'): Promise<TorrentResult[]> {
     const results: TorrentResult[] = [];
-    const activeSites = WP_SITES.filter(s => s.priority > 0).sort((a, b) => b.priority - a.priority);
+    // Animes são indexados APENAS pelo DarkMahou (romaji/native).
+    // Para os demais tipos, consulta todos os sites ativos.
+    const isAnime = type === 'anime';
+    const activeSites = WP_SITES
+      .filter(s => s.priority > 0)
+      .filter(s => !isAnime || s.name === 'DarkMahou')
+      .sort((a, b) => b.priority - a.priority);
 
     const promises = activeSites.map(site =>
       this.searchSite(site, query, type).then(r => {

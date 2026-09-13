@@ -44,6 +44,8 @@ export class TorrentScraperService {
     ): Promise<TorrentResult[]> {
         const startTime = Date.now();
         try {
+            const ehAnime = type === 'anime';
+
             let tmdbData = null;
             if (imdbId) {
                 tmdbData = await this.getTmdbData(imdbId, targetSeason);
@@ -71,10 +73,14 @@ export class TorrentScraperService {
                 .slice(0, 2);
 
             const [wpResults, starckResults, hdrResults] = await Promise.all([
-                // WordPress (Comando/DarkMahou/Starck) + Bludv
+                // WordPress (Comando/DarkMahou/Starck) + Bludv.
+                // Para anime, apenas o DarkMahou é consultado (filtrado no wordpressScraper);
+                // BLUDV/Starck/HDR são pulados (indexam só filmes/séries).
                 withTimeout(Promise.all([
-                    this.bludvScraper.search(qEn, type).catch(() => []),
-                    this.bludvScraper.search(qPt, type).catch(() => []),
+                    ...(ehAnime ? [] : [
+                        this.bludvScraper.search(qEn, type).catch(() => []),
+                        this.bludvScraper.search(qPt, type).catch(() => []),
+                    ]),
                     this.wpScraper.search(qEn, type).catch(() => []),
                     ptDiferente ? this.wpScraper.search(qPt, type).catch(() => []) : Promise.resolve([]),
                     ...altQueries.map(q => this.wpScraper.search(q, type).catch(() => []))
@@ -88,7 +94,7 @@ export class TorrentScraperService {
                 }).catch(() => []), []),
 
                 // Starck
-                withTimeout(Promise.all([
+                ehAnime ? Promise.resolve([]) : withTimeout(Promise.all([
                     searchStarck(qEn, type),
                     ptDiferente ? searchStarck(qPt, type) : Promise.resolve([])
                 ]).then(([en, pt]) => {
@@ -100,7 +106,7 @@ export class TorrentScraperService {
                 }).catch(() => []), []),
 
                 // HDR
-                withTimeout(Promise.all([
+                ehAnime ? Promise.resolve([]) : withTimeout(Promise.all([
                     searchHdr(qEn, type),
                     ptDiferente ? searchHdr(qPt, type) : Promise.resolve([])
                 ]).then(([en, pt]) => {

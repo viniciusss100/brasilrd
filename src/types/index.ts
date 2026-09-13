@@ -8,6 +8,7 @@ export interface Stream {
     bingeGroup?: string;
     filename?: string;
     streamQuality?: string;
+    videoSize?: number;
     packageContent?: boolean;
     // Permite campos extras para funcionalidades customizadas
     [key: string]: any;
