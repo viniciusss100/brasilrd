@@ -5,12 +5,38 @@
 const path = require('path');
 
 let appPromise = null;
+let serverModule = null;
+
+function loadApp() {
+  if (!appPromise) {
+    serverModule = serverModule || require(path.join(__dirname, '../dist/server.js'));
+    // Warm-up no primeiro acesso; em falha, reset para tentar na próxima
+    // invocação em vez de cuspir um FUNCTION_INVOCATION_FAILED.
+    appPromise = serverModule.getApp();
+    appPromise.catch(() => {
+      if (serverModule) {
+        try { delete require.cache[require.resolve(path.join(__dirname, '../dist/server.js'))]; } catch {}
+      }
+      appPromise = null;
+    });
+  }
+  return appPromise;
+}
 
 module.exports = async (req, res) => {
-  if (!appPromise) {
-    const serverModule = require(path.join(__dirname, '../dist/server.js'));
-    appPromise = serverModule.getApp();
+  try {
+    const app = await loadApp();
+    return app(req, res);
+  } catch (err) {
+    // Nunca deixa a invocação "quebrar": responde 200 com lista vazia para o
+    // Stremio e loga. O Vercel re-tenta sozinho; a próxima (warm) funciona.
+    console.error('[Vercel handler] erro na invocação:', err && (err.stack || err.message));
+    if (!res.headersSent) {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ streams: [] }));
+    } else {
+      res.end();
+    }
   }
-  const app = await appPromise;
-  return app(req, res);
 };

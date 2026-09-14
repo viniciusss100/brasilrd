@@ -76,6 +76,19 @@ app.use('/videos', express.static(videosPath));
 app.use('/static/videos', express.static(videosPath));
 
 async function initializeDatabase() {
+    // Em serverless (Vercel), NÃO bloqueia o cold start esperando o banco
+    // (pode custar ~30s e estourar o maxDuration -> FUNCTION_INVOCATION_FAILED).
+    // Sincroniza em background: se o banco cair, o fluxo segue com scraping.
+    if (process.env.VERCEL) {
+        const syncOptions = process.env.NODE_ENV === 'development' ? { alter: true } : {};
+        sequelize.sync(syncOptions)
+            .then(() => sequelize.authenticate())
+            .catch(err => logger.warn('Banco indisponível no serverless — seguindo sem DB', {
+                error: err instanceof Error ? err.message : 'Erro'
+            }));
+        return;
+    }
+
     try {
         const syncOptions = process.env.NODE_ENV === 'development' ? { alter: true } : {};
         await sequelize.sync(syncOptions);
