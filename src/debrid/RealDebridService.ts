@@ -30,6 +30,17 @@ interface TorboxListResponse {
   success?: boolean;
 }
 
+interface TorboxHashInfoResponse {
+  data?: {
+    hash?: string;
+    name?: string;
+    seeds?: number;
+    peers?: number;
+    size?: number;
+  };
+  success?: boolean;
+}
+
 export class TorboxService {
   private static instance: TorboxService | null = null;
 
@@ -235,6 +246,44 @@ export class TorboxService {
   async selectFiles(_torrentId: string, _apiKey: string, _fileIds: string = 'all'): Promise<void> {
     // Torbox não requer seleção de arquivos — todos os arquivos já estão disponíveis
     // Mantido para compatibilidade com a interface existente
+  }
+
+  /**
+   * Consulta os seeds REAIS de um torrent no Torbox (/torrents/torrentinfo).
+   * Nunca lança: em falha retorna 0 (v1.6.2 — antes os seeds eram inventados).
+   */
+  async getTorrentInfoByHash(hash: string, apiKey: string, timeoutSec = 10): Promise<number> {
+    if (!hash || hash.length < 32) return 0;
+    const client = this.createHttpClient(apiKey);
+    const startTime = Date.now();
+    try {
+      const response = await client.get<TorboxHashInfoResponse>('/torrents/torrentinfo', {
+        params: { hash, timeout: timeoutSec },
+        timeout: (timeoutSec + 2) * 1000,
+      });
+      const seeds = Number(response.data?.data?.seeds);
+      if (!Number.isFinite(seeds) || seeds < 0) {
+        this.logger.debug('getTorrentInfoByHash: seeds inválidos na resposta', {
+          hash: hash.substring(0, 16),
+          rawSeeds: response.data?.data?.seeds,
+          durationMs: Date.now() - startTime,
+        });
+        return 0;
+      }
+      this.logger.debug('getTorrentInfoByHash: seeds obtidos', {
+        hash: hash.substring(0, 16),
+        seeds,
+        durationMs: Date.now() - startTime,
+      });
+      return seeds;
+    } catch (error) {
+      this.logger.debug('getTorrentInfoByHash: falha silenciosa (retorna 0)', {
+        hash: hash.substring(0, 16),
+        error: (error as Error).message,
+        durationMs: Date.now() - startTime,
+      });
+      return 0;
+    }
   }
 
   async unrestrictLink(_link: string, _apiKey: string): Promise<string> {

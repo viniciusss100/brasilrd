@@ -4,6 +4,11 @@ import { ImdbScraperService, ImdbTitles } from '../catalogo/ImdbScraperService.j
 import { AutoMagnetService } from '../debrid/AutoMagnetService.js';
 import { Logger } from '../utils/logger.js';
 import { Op } from 'sequelize';
+import { analisarMagnet } from '../magnet/magnetHelper.js';
+
+// v1.6.2: quaisquer releases CAM/TS (ex.: cópia de cinema) são removidos do
+// acervo quando existir qualidade melhor pro mesmo IMDb.
+const CAM_LIKE_REGEX = /\b(cam(?:[\s._-]?rip)?|hdcam|hd[\s._-]?cam|hd[\s._-]?ts|ts[\s._-]?rip|telecine|telesync|workprint)\b/i;
 
 const logger = new Logger('RescrapeService');
 
@@ -274,6 +279,13 @@ export class RescrapeService {
       return true;
     });
 
+    // v1.6.2: limpa CAM/TS sempre, mesmo quando a busca não trouxe resultado novo
+    try {
+      await this.removeCamIfBetterExists(imdbId);
+    } catch {
+      // não bloqueia o rescrape
+    }
+
     if (allResults.length === 0) {
       logger.debug(`Nenhum resultado novo para ${imdbId}`);
       // Atualiza rescrapeAt para +12h (tenta de novo mais tarde, pode ser timing)
@@ -321,6 +333,46 @@ export class RescrapeService {
   /**
    * Atualiza rescrapeAt para TODOS os torrents de um imdbId.
    */
+  // Usa o analisarMagnet (mesmo canonical que o stream exibe) — title só como fallback.
+  private async isCamLike(torrent: any): Promise<boolean> {
+    if (torrent.magnet) {
+      const dados = await analisarMagnet(torrent.magnet).catch(() => null);
+      if (dados?.nome) return CAM_LIKE_REGEX.test(dados.nome);
+    }
+    return CAM_LIKE_REGEX.test(torrent.title || '');
+  }
+
+  // Remove CAM/TS/etc quando já tem algo melhor pro mesmo IMDb no banco.
+  private async removeCamIfBetterExists(imdbId: string): Promise<number> {
+    const torrents = await Torrent.findAll({
+      attributes: ['infoHash', 'title', 'magnet'],
+      where: { imdbId },
+      raw: true,
+    });
+
+    const flags = await Promise.all(torrents.map((t: any) => this.isCamLike(t)));
+
+    const cams: any[] = [];
+    const nonCams: any[] = [];
+    torrents.forEach((t: any, i: number) => {
+      if (flags[i]) cams.push(t);
+      else nonCams.push(t);
+    });
+
+    // Sem CAM pra limpar, ou só tem CAM — não mexe.
+    if (cams.length === 0 || nonCams.length === 0) return 0;
+
+    const hashes = cams.map((t: any) => t.infoHash).filter(Boolean);
+    if (hashes.length === 0) return 0;
+
+    const destroyed = await Torrent.destroy({
+      where: { imdbId, infoHash: { [Op.in]: hashes } },
+    });
+
+    logger.info(`🗑️ Removidos ${destroyed} torrent(s) CAM/TS de ${imdbId} — já tem qualidade melhor`);
+    return destroyed;
+  }
+
   private async updateRescrapeAt(imdbId: string, rescrapeAt: Date | null): Promise<void> {
     await Torrent.update(
       { rescrapeAt } as any,

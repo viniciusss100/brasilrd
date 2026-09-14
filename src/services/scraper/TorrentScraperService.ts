@@ -190,7 +190,8 @@ export class TorrentScraperService {
     private mapHdrResult(r: { title: string; magnet: string; infoHash: string; seeders: number; size: string; language: string }, type: 'movie' | 'series' | 'anime'): TorrentResult | null {
         if (!r.magnet) return null;
         
-        const magnetName = this.extractDisplayNameFromMagnet(r.magnet, r.title);
+        const magnetName = this.extractDisplayNameFromMagnet(r.magnet, r.title) || r.title;
+        if (!magnetName) return null;
         const quality = this.qualityDetector.extractQualityFromFilename(magnetName) || this.detectQualityFromText(magnetName);
         const season = this.episodeMatcher.extractSeasonFromTitle(magnetName);
         const language = r.language ? this.mapHdrLanguage(r.language) : this.detectLanguageFromText(magnetName);
@@ -217,7 +218,9 @@ export class TorrentScraperService {
     private mapStarckResult(r: { magnet: string; infoHash: string }, type: 'movie' | 'series' | 'anime'): TorrentResult | null {
         if (!r.magnet) return null;
 
+        // v1.6.2: sem `dn=` no magnet, NÃO vaza o magnet inteiro como título
         const displayName = this.extractDisplayNameFromMagnet(r.magnet);
+        if (!displayName) return null;
         const quality = this.qualityDetector.extractQualityFromFilename(displayName) || this.detectQualityFromText(displayName);
         const season = this.episodeMatcher.extractSeasonFromTitle(displayName);
         const language = this.detectLanguageFromText(displayName);
@@ -246,7 +249,8 @@ export class TorrentScraperService {
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Extrai o nome de exibição (`dn=`) do link magnet com decodificação segura
+     * Extrai o nome de exibição (`dn=`) do link magnet com decodificação segura.
+     * v1.6.2: sem `dn=` NÃO vaza o magnet inteiro como título — usa o fallback.
      */
     private extractDisplayNameFromMagnet(magnet: string, fallbackTitle?: string): string {
         if (!magnet) return fallbackTitle || '';
@@ -258,7 +262,7 @@ export class TorrentScraperService {
                 return dnMatch[1].replace(/\+/g, ' ');
             }
         }
-        return fallbackTitle || magnet;
+        return fallbackTitle || '';
     }
 
     /**

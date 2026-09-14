@@ -21,6 +21,16 @@ const LEGENDADO_REGEX = new RegExp(
 
 const logger = new Logger('WordPressScraper');
 
+/** Decodifica entidades HTML da API do WordPress (&#8211;, &amp;, &nbsp;...) */
+function decodificarHtml(texto: string): string {
+  if (!texto) return texto;
+  try {
+    return cheerio.load(`<span>${texto}</span>`)('span').text();
+  } catch {
+    return texto;
+  }
+}
+
 // Limite total agregado dos termos de fallback (query curta) por site
 const MAX_FALLBACK_RESULTS = 60;
 
@@ -239,11 +249,12 @@ export class WordPressScraper {
         if (postIdx > maxPosts) break;
         if (results.length >= MAX_RESULTS_PER_TERM) break;
         try {
-          const postTitle = (post.title?.rendered || '').toLowerCase();
+          const postTitleRaw = decodificarHtml(post.title?.rendered || '');
+          const postTitle = postTitleRaw.toLowerCase();
           
           // Pula posts "Listão" — compilações genéricas sem labels individuais nos magnets
           if (/\blist[aã]o\b/i.test(postTitle)) {
-            logger.debug(`WP ${site.name}: pulando post listão "${(post.title?.rendered || '').substring(0, 50)}"`);
+            logger.debug(`WP ${site.name}: pulando post listão "${postTitleRaw.substring(0, 50)}"`);
             continue;
           }
           
@@ -302,7 +313,7 @@ export class WordPressScraper {
     queryWords?: string[],
     postIsRelevant: boolean = false
   ): Promise<TorrentResult[]> {
-    const title = post.title?.rendered || '';
+    const title = decodificarHtml(post.title?.rendered || '');
     let content = post.content?.rendered || '';
     if (!content) return [];
 

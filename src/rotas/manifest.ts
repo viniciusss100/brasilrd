@@ -9,7 +9,8 @@ export const manifest = {
     version: versaoProjeto,
     
     // Informações básicas
-    name: 'brasilrd',
+    // ADDON_NAME: identifica a instância no player (ex: brasilrd-vercel)
+    name: process.env.ADDON_NAME?.trim() || 'brasilrd',
     description: 'Addon brasileiro com suporte ao Torbox',
     
     // Imagens

@@ -13,6 +13,14 @@ export interface TorrentResult {
     season?: number;
     lastUpdated: Date;
     confidence: number;
+    // Campos adicionais v1.6.2 (opcionais/consumidos pelos scrapers e validadores)
+    infoHash?: string;
+    htmlTitle?: string;
+    originalTitle?: string;
+    canonicalName?: string;
+    imdbConfirmed?: boolean;
+    episode?: number;
+    years?: number[];
 }
 
 export interface TorrentIndexerResult {

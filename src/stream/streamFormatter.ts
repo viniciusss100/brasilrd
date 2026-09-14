@@ -93,7 +93,7 @@ export class StreamFormatter {
 
   // Nome da stream estilo StremThru:
   // Linha 1: badges da store (⚡️ quando em cache, [TB] com debrid ativado)
-  // Linha 2: nome do addon
+  // Linha 2: nome do addon (ADDON_NAME permite identificar a instância, ex: brasilrd-vercel)
   // Linha 3: resolucao
   private montarNomeStream(qualidade: string, emCache: boolean, debridAtivo: boolean): string {
     const badges: string[] = [];
@@ -104,7 +104,7 @@ export class StreamFormatter {
     if (badges.length > 0) {
       partes.push(badges.join(' '));
     }
-    partes.push('Brasil RD');
+    partes.push((process.env.ADDON_NAME || 'Brasil RD').trim());
     partes.push(qualidade);
     return partes.join('\n');
   }
@@ -241,29 +241,38 @@ export class StreamFormatter {
   // Stremio/Nuvio/aiostreams.
   private formatarIdioma(idioma: string): string {
     if (!idioma) return 'PT-BR';
-    
-    const idiomaNormalizado = idioma.toLowerCase().trim();
-    
+
+    // Normaliza (v1.6.2): remove acentos e trata valores inválidos como PT-BR
+    const idiomaNormalizado = idioma
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .trim();
+
+    if (['', 'desconhecido', 'unknown', 'undefined', 'null', 'n/a', 'na'].includes(idiomaNormalizado)) {
+      return 'PT-BR';
+    }
+
     const mapaIdiomas: Record<string, string> = {
       'pt-br': 'PT-BR',
       'pt': 'PT-BR',
       'portuguese': 'PT-BR',
+      'portugues': 'PT-BR',
+      'portugues,english': 'PT-BR',
       'brazilian': 'PT-BR',
       'dublado': 'PT-BR',
       'dublada': 'PT-BR',
       'dublagem': 'PT-BR',
       'nacional': 'PT-BR',
-      
+
       // Dual / Dual Áudio / dual audio => tem áudio PT-BR -> mostrar PT-BR
       'dual': 'PT-BR',
       'dual audio': 'PT-BR',
-      'dual áudio': 'PT-BR',
       'dualaudio': 'PT-BR',
       'pt-br,en': 'PT-BR',
       'pt-br,en-us': 'PT-BR',
       'portuguese,english': 'PT-BR',
       'dublado,legendado': 'PT-BR',
-      
+
       'en': 'EN',
       'english': 'EN',
       'eng': 'EN',
@@ -271,29 +280,33 @@ export class StreamFormatter {
       'legendada': 'EN',
       'legenda': 'EN',
       'subtitled': 'EN',
-      
+
       'multi': 'Multi',
       'multilanguage': 'Multi',
       'pt-br,en-us,ja-jp': 'Multi',
-      
+
       'es': 'ES',
       'spanish': 'ES',
       'esp': 'ES',
-      
+
       'fr': 'FR',
       'french': 'FR'
     };
-    
+
     if (mapaIdiomas[idiomaNormalizado]) {
       return mapaIdiomas[idiomaNormalizado];
     }
-    
+
+    // Casamento por palavra (v1.6.2) em vez de includes — evita "es" casando
+    // em "portugues", etc.
     for (const [chave, valor] of Object.entries(mapaIdiomas)) {
-      if (idiomaNormalizado.includes(chave)) {
+      const k = chave.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const re = new RegExp(`(^|[^a-z0-9])${k.replace(/[-.,]/g, '\\$&')}([^a-z0-9]|$)`, 'i');
+      if (re.test(idiomaNormalizado)) {
         return valor;
       }
     }
-    
+
     return idioma.toUpperCase();
   }
 

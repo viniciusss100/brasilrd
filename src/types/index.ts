@@ -75,6 +75,8 @@ export interface TorboxTorrentInfo {
   progress: number;        // 0-1 (Torbox usa fração, não %)
   files: TorboxFile[];
   size?: number;
+  seeds?: number;          // seeds reais (v1.6.2 — /torrents/torrentinfo)
+  peers?: number;
   download_speed?: number;
   upload_speed?: number;
   created_at?: string;

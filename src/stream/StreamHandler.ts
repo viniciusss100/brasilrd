@@ -39,6 +39,13 @@ export class StreamHandler {
   private readonly streamFormatter: StreamFormatter;
   private readonly catalogProvider: CatalogProvider;
 
+  // Seeds reais do Torbox (v1.6.2) — cache com TTL p/ não custar por request
+  private readonly seedsCache = new Map<string, { seeds: number; timestamp: number }>();
+  private readonly SEEDS_CACHE_TTL = 5 * 60 * 1000;
+  private readonly SEEDS_FETCH_CONCURRENCY = 8;
+  private readonly SEEDS_FETCH_TIMEOUT_SEC = 3;
+  private readonly MAX_SEEDS_CACHE_SIZE = 2000;
+
   // Estatísticas globais
   private stats = {
     totalRequests: 0,
@@ -188,6 +195,67 @@ export class StreamHandler {
     };
   }
 
+  // Enriquece os torrents do banco com seeds REAIS do Torbox (cache 5min).
+  // Nunca atrasa além do batch: falha silenciosa mantém os seeds atuais.
+  private async enrichTorrentsWithSeeders(torrents: any[], apiKey: string): Promise<void> {
+    if (torrents.length === 0) return;
+
+    const hashes = [...new Set(
+      torrents
+        .map(t => (t.infoHash || '').toLowerCase())
+        .filter((h): h is string => typeof h === 'string' && h.length >= 32)
+    )];
+    if (hashes.length === 0) return;
+
+    const seedsByHash = new Map<string, number>();
+    const toFetch: string[] = [];
+
+    for (const hash of hashes) {
+      const cached = this.seedsCache.get(hash);
+      if (cached && (Date.now() - cached.timestamp) < this.SEEDS_CACHE_TTL) {
+        seedsByHash.set(hash, cached.seeds);
+      } else {
+        toFetch.push(hash);
+      }
+    }
+
+    for (let i = 0; i < toFetch.length; i += this.SEEDS_FETCH_CONCURRENCY) {
+      const batch = toFetch.slice(i, i + this.SEEDS_FETCH_CONCURRENCY);
+      const results = await Promise.all(
+        batch.map(hash =>
+          this.torboxService.getTorrentInfoByHash(hash, apiKey, this.SEEDS_FETCH_TIMEOUT_SEC).catch(() => 0)
+        )
+      );
+      for (let j = 0; j < batch.length; j++) {
+        const seeds = results[j] || 0;
+        seedsByHash.set(batch[j], seeds);
+        this.seedsCache.set(batch[j], { seeds, timestamp: Date.now() });
+      }
+    }
+
+    if (toFetch.length > 0) {
+      this.logger.debug('SEEDERS_ENRICH', {
+        totalHashes: hashes.length,
+        fromCache: hashes.length - toFetch.length,
+        fetched: toFetch.length,
+      });
+    }
+
+    if (this.seedsCache.size > this.MAX_SEEDS_CACHE_SIZE) {
+      const entries = [...this.seedsCache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp);
+      const toRemove = entries.slice(0, Math.floor(this.MAX_SEEDS_CACHE_SIZE / 2));
+      for (const [hash] of toRemove) this.seedsCache.delete(hash);
+      this.logger.debug('SEEDERS_CACHE_GC', { removed: toRemove.length, remaining: this.seedsCache.size });
+    }
+
+    for (const t of torrents) {
+      const hash = (t.infoHash || '').toLowerCase();
+      if (hash && seedsByHash.has(hash)) {
+        t.seeders = seedsByHash.get(hash)!;
+      }
+    }
+  }
+
   private async getStreamsFromDatabase(request: StreamRequest): Promise<DatabaseStreamResult> {
     const startTime = Date.now();
     try {
@@ -247,6 +315,15 @@ export class StreamHandler {
           this.logger.debug('Badge de cache nao aplicado (Torbox indisponivel)', {
             error: error instanceof Error ? error.message : 'Erro'
           });
+        }
+      }
+
+      // ⚡️ Seeds reais do Torbox (v1.6.2): enriquece antes de montar os streams
+      if (request.apiKey) {
+        try {
+          await this.enrichTorrentsWithSeeders(torrents, request.apiKey);
+        } catch {
+          // falha silenciosa: mantém os seeds atuais
         }
       }
 
