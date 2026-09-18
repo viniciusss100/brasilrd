@@ -510,6 +510,11 @@ export class StreamFormatter {
 
     if (p2p) {
       stream.infoHash = magnetHash || undefined;
+      // Nuvio precisa de uma URL magnet explícita para iniciar P2P. Stremio
+      // continua usando infoHash/sources normalmente. O magnet inclui apenas
+      // trackers extras (sem alterar o hash/arquivo).
+      stream.url = magnetParaP2P;
+      stream.magnet = magnetParaP2P;
       stream.sources = dadosMagnet?.anuncios.map(tracker => `tracker:${tracker}`) || [];
     } else if (resolveUrl) {
       stream.url = resolveUrl;
