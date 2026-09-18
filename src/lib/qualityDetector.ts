@@ -127,6 +127,13 @@ export class QualityDetector {
     return this.extractBestQuality(filename);
   }
 
+  // Retorna null quando não há qualidade explícita (HD genérico não conta).
+  extractQualityOrNull(text: string): string | null {
+    if (!text) return null;
+    const quality = this.extractBestQuality(text);
+    return quality === 'HD' ? null : quality;
+  }
+
   extractQualityFromStreamName(name: string | undefined): string {
     if (!name) return 'HD';
     return this.extractBestQuality(name);

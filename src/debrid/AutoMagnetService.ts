@@ -477,9 +477,13 @@ export class AutoMagnetService {
       // Verifica se ja existe no banco
       const existingTorrent = await getTorrent(magnetHash);
       if (existingTorrent) {
-        // Atualiza seeders e lastSeen
+        // Scraper manda seeds=0 quando não sabe — preserva valor real já salvo.
+        const seedersNovos = Number(magnetData.seeds) || 0;
+        const seedersFinais = seedersNovos > 0
+          ? seedersNovos
+          : Number(existingTorrent.seeders) || 0;
         await upsertTorrent(magnetHash, {
-          seeders: magnetData.seeds || 0,
+          seeders: seedersFinais,
           lastSeen: new Date()
         });
         return false;

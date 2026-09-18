@@ -182,22 +182,27 @@ export class StaticResponseService {
   }
 
   getResponseForTorboxStatus(torboxStatus: string): StaticResponse | null {
-    // Torbox usa status do qBittorrent
-    const statusMap: Record<string, StaticResponse> = {
-      'downloading': StaticResponse.DOWNLOADING,
-      'metaDL': StaticResponse.DOWNLOADING,
-      'stalled': StaticResponse.DOWNLOADING,
-      'checkingResumeData': StaticResponse.DOWNLOADING,
-      'paused': StaticResponse.DOWNLOADING,
-      'queued': StaticResponse.DOWNLOADING,
-      'error': StaticResponse.FAILED_DOWNLOAD,
-      'missingFiles': StaticResponse.FAILED_DOWNLOAD,
-      'unknown': StaticResponse.FAILED_DOWNLOAD,
-    };
+    // Torbox devolve estados com capitalização variada (metaDL,
+    // checkingResumeData, checking...). Compare sempre em lowercase.
+    const statusMap: Array<{ key: string; value: StaticResponse }> = [
+      { key: 'downloading', value: StaticResponse.DOWNLOADING },
+      { key: 'metadl', value: StaticResponse.DOWNLOADING },
+      { key: 'stalled', value: StaticResponse.DOWNLOADING },
+      { key: 'checkingresumedata', value: StaticResponse.DOWNLOADING },
+      { key: 'checking', value: StaticResponse.DOWNLOADING },
+      { key: 'paused', value: StaticResponse.DOWNLOADING },
+      { key: 'queued', value: StaticResponse.DOWNLOADING },
+      { key: 'error', value: StaticResponse.FAILED_DOWNLOAD },
+      { key: 'missingfiles', value: StaticResponse.FAILED_DOWNLOAD },
+      { key: 'unknown', value: StaticResponse.FAILED_DOWNLOAD },
+    ];
 
-    const lower = torboxStatus?.toLowerCase() || '';
-    for (const [key, value] of Object.entries(statusMap)) {
-      if (lower.includes(key)) return value;
+    const lower = (torboxStatus || '').toLowerCase();
+    for (const { key, value } of statusMap) {
+      if (lower.includes(key)) {
+        this.logger.debug('TORBOX_STATUS_MATCH', { status: torboxStatus, match: key, staticResponse: value });
+        return value;
+      }
     }
     return null;
   }
