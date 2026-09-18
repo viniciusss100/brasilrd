@@ -53,7 +53,8 @@ async function updateDynamicTrackers(): Promise<void> {
 }
 
 updateDynamicTrackers().catch(() => {});
-setInterval(() => updateDynamicTrackers().catch(() => {}), 12 * 60 * 60 * 1000);
+const trackerUpdateTimer = setInterval(() => updateDynamicTrackers().catch(() => {}), 12 * 60 * 60 * 1000);
+trackerUpdateTimer.unref();
 
 export function getExtraTrackers(): string[] {
   return DYNAMIC_TRACKERS;
@@ -87,7 +88,11 @@ export function enrichMagnetTrackers(magnet: string): string {
       }
     }
 
-    return `${base}?${params.toString()}`;
+    // parse-torrent e alguns clientes P2P esperam xt=urn:btih: sem encode
+    // nos dois-pontos; URLSearchParams codifica esses caracteres por padrão.
+    const queryEnriquecida = params.toString()
+      .replace(/xt=urn%3Abtih%3A/i, 'xt=urn:btih:');
+    return `${base}?${queryEnriquecida}`;
   } catch (err) {
     logger.warn('Falha ao enriquecer magnet, retornando original', {
       error: err instanceof Error ? err.message : 'erro desconhecido'

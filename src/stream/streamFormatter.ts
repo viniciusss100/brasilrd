@@ -4,6 +4,7 @@ import { QualityDetector } from '../lib/qualityDetector.js';
 import { Logger } from '../utils/logger.js';
 import { MetadataExtractor } from '../titulos/MetadataExtractor.js';
 import { EnhancedSeriesMetadata } from '../titulos/interfaces.js';
+import { enrichMagnetTrackers } from '../lib/trackerEnrich.js';
 
 export class StreamFormatter {
   private readonly logger: Logger;
@@ -427,7 +428,10 @@ export class StreamFormatter {
     });
     */
 
-    const dadosMagnet = await analisarMagnet(magnet);
+    // Só enriquece trackers no modo P2P. Fluxo Torbox/debrid mantém o magnet
+    // original e os seeds reais consultados pela API.
+    const magnetParaP2P = p2p ? enrichMagnetTrackers(magnet) : magnet;
+    const dadosMagnet = await analisarMagnet(magnetParaP2P);
     const magnetHash = dadosMagnet?.infoHash;
 
     // Qualidade real: se o scraper disse apenas "HD", tenta extrair da fonte canonica (dn do magnet)
@@ -498,7 +502,10 @@ export class StreamFormatter {
     const stream: Stream = {
       name: this.montarNomeStream(qualidadeReal, emCache, !!apiKey),
       title: tituloFinal,
-      fileIdx: fileIdx !== undefined ? fileIdx : 0
+      // P2P: não force fileIdx=0. Alguns torrents Stark têm poster/imagem
+      // antes do vídeo; Nuvio respeita 0 e fica em imagem estática. Sem índice,
+      // o cliente escolhe o primeiro arquivo de vídeo (Stremio já fazia isso).
+      fileIdx: p2p ? undefined : (fileIdx !== undefined ? fileIdx : 0)
     };
 
     if (p2p) {
