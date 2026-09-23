@@ -187,13 +187,16 @@ export class TorrentScraperService {
     //  MAPEAMENTOS E EXTRAÇÃO DE METADADOS
     // ═══════════════════════════════════════════════════════════
 
-    private mapHdrResult(r: { title: string; magnet: string; infoHash: string; seeders: number; size: string; language: string }, type: 'movie' | 'series' | 'anime'): TorrentResult | null {
+    private mapHdrResult(r: any, type: 'movie' | 'series' | 'anime'): TorrentResult | null {
         if (!r.magnet) return null;
-        
-        const magnetName = this.extractDisplayNameFromMagnet(r.magnet, r.title) || r.title;
+
+        // O parser HDR v1.6.5 já monta título rico e metadados; prefere r.title.
+        // canonicalName (dn do magnet) só como fallback de qualidade/temporada.
+        const magnetName = (r.title && r.title.trim() ? r.title : this.extractDisplayNameFromMagnet(r.magnet, r.title)) || r.title;
         if (!magnetName) return null;
         const quality = this.qualityDetector.extractQualityFromFilename(magnetName) || this.detectQualityFromText(magnetName);
-        const season = this.episodeMatcher.extractSeasonFromTitle(magnetName);
+        const season = r.season ?? this.episodeMatcher.extractSeasonFromTitle(magnetName);
+        const episode = r.episode;
         const language = r.language ? this.mapHdrLanguage(r.language) : this.detectLanguageFromText(magnetName);
         const { formattedSize, sizeInBytes } = this.parseSize(r.size, magnetName);
 
@@ -210,8 +213,15 @@ export class TorrentScraperService {
             relevanceScore: 0,
             sizeInBytes,
             season: season ?? undefined,
+            episode,
+            htmlTitle: r.htmlTitle,
+            originalTitle: r.originalTitle,
+            canonicalName: r.canonicalName,
+            imdbConfirmed: r.imdbConfirmed,
+            years: r.years,
+            infoHash: r.infoHash,
             lastUpdated: new Date(),
-            confidence: 0.70
+            confidence: r.imdbConfirmed ? 0.9 : 0.70
         };
     }
 
