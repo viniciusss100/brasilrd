@@ -8,7 +8,7 @@ import { TorrentResult } from './torrentTypes.js';
 import { QualityDetector } from '../../lib/qualityDetector.js';
 import { allowedQualities } from './scraperConfigs.js';
 import { analisarMagnet } from '../../magnet/magnetHelper.js';
-import { agenteHttps as dnsAgent, lookupCustomizado } from './wordpressScraper.js';
+import { agenteHttps as dnsAgent, lookupCustomizado, requisicaoComFallback } from './wordpressScraper.js';
 
 const logger = new Logger('BludvScraper');
 
@@ -59,7 +59,7 @@ export class BludvScraper {
     const encoded = encodeURIComponent(query);
     const searchUrl = `${BASE_URL}/?s=${encoded}`;
 
-    const res = await axios.get(searchUrl, AXIOS_OPTS);
+    const res = await requisicaoComFallback(searchUrl, AXIOS_OPTS);
     const $ = cheerio.load(res.data);
     const postUrls: string[] = [];
 
@@ -87,7 +87,7 @@ export class BludvScraper {
 
   // ═══ Extrai magnets de um post individual ═══
   private async scrapePost(postUrl: string, type: 'movie' | 'series' | 'anime'): Promise<TorrentResult[]> {
-    const res = await axios.get(postUrl, AXIOS_OPTS);
+    const res = await requisicaoComFallback(postUrl, AXIOS_OPTS);
     const $ = cheerio.load(res.data);
     
     // BLUDV usa .content como wrapper principal (tema customizado, sem article/.entry-content)

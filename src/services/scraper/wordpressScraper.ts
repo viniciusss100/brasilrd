@@ -81,6 +81,49 @@ function createProxyAgent(proxyUrl: string): any {
 
 export const agenteHttps = PROXY_URL ? createProxyAgent(PROXY_URL) : dnsAgent;
 
+// Agente SEM proxy (DNS direto) — fallback quando o proxy configurado está
+// inacessível (ex.: PROXY_URL apontando para rede privada no Vercel).
+export const agenteDireto = dnsAgent;
+
+export interface RequisicaoConfig {
+  timeout?: number;
+  headers?: Record<string, string>;
+  params?: any;
+}
+
+/**
+ * GET com fallback automático: tenta com o agente atual (proxy se configurado);
+ * se a conexão falhar por causa do proxy/túnel, repete direto (sem proxy).
+ * Evita que BLUDV/HDR/WordPress retornem 0 quando PROXY_URL está fora do ar.
+ */
+export async function requisicaoComFallback(
+  url: string,
+  config: RequisicaoConfig = {}
+): Promise<any> {
+  const base = {
+    timeout: config.timeout || 15000,
+    headers: config.headers,
+    params: config.params,
+    lookup: lookupCustomizado,
+    url,
+  };
+  try {
+    return await axios.get(url, { ...base, httpsAgent: agenteHttps });
+  } catch (err: any) {
+    const msg = String(err?.cause?.message || err?.message || '').toLowerCase();
+    const code = String(err?.code || err?.cause?.code || '').toUpperCase();
+    const proxyFalhou =
+      msg.includes('tunnel') || msg.includes('proxy') || msg.includes('socks') ||
+      ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ECONNABORTED', 'EHOSTUNREACH'].includes(code);
+    if (!proxyFalhou) throw err;
+    logger.warn('Proxy indisponível — retentando direto (sem proxy)', {
+      url: url.substring(0, 60),
+      error: err?.message,
+    });
+    return await axios.get(url, { ...base, httpsAgent: agenteDireto });
+  }
+}
+
 // Funcao lookup customizada: usa dns.resolve4 para bypassar DNS do sistema
 // Axios/Node usa dns.lookup() (DNS do SO) antes de delegar ao httpsAgent.
 // Com lookup customizado, forçamos dns.resolve4 (Google DNS via setServers).
@@ -365,13 +408,11 @@ export class WordPressScraper {
     // e o fetch é caro (vários posts = timeout).
     if (!magnetLinks.length && post.link && (postIsRelevant || !queryWords || queryWords.length === 0)) {
       try {
-        const htmlRes = await axios.get(post.link, {
+        const htmlRes = await requisicaoComFallback(post.link, {
           timeout: 5000,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
           },
-          httpsAgent: agenteHttps,
-          lookup: lookupCustomizado,
         });
         const $html = cheerio.load(htmlRes.data);
         magnetLinks = $html('a[href^="magnet:"]');

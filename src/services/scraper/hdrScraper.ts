@@ -1,15 +1,15 @@
-// hdrtorrent.com HTML Scraper — 2-passos: busca → página de post → magnet
+// hdrtorrents.net HTML Scraper — 2-passos: busca → página de post → magnet
 // Magnets estão diretos no HTML (sem ofuscação), diferente do Starck
 // Usa o mesmo DNS bypass do WordPress/TPB/Starck scraper
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { Logger } from '../../utils/logger.js';
-import { agenteHttps, lookupCustomizado } from './wordpressScraper.js';
+import { agenteHttps, lookupCustomizado, requisicaoComFallback } from './wordpressScraper.js';
 
 const logger = new Logger('HdrScraper');
 
-const HDR_BASE = 'https://hdrtorrent.com';
+const HDR_BASE = 'https://hdrtorrents.net';
 
 // ── Tipos ─────────────────────────────────────────────────────────────
 
@@ -47,7 +47,7 @@ async function searchHdrLinks(query: string): Promise<SearchResultItem[]> {
   const searchUrl = `${HDR_BASE}/index.php?s=${encodeURIComponent(query)}`;
 
   try {
-    const res = await axios.get(searchUrl, axiosConfig);
+    const res = await requisicaoComFallback(searchUrl, axiosConfig);
     const $ = cheerio.load(res.data);
 
     const results: SearchResultItem[] = [];
@@ -152,7 +152,7 @@ export async function searchHdr(
       const batchResults = await Promise.all(
         batch.map(async (item) => {
           try {
-            const res = await axios.get(item.postUrl, axiosConfig);
+            const res = await requisicaoComFallback(item.postUrl, axiosConfig);
             return extractMagnetsFromPost(res.data, item.title);
           } catch {
             return [];
