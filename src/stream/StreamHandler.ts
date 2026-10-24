@@ -12,6 +12,7 @@ import { StaticResponseService, StaticResponse } from './StaticResponseService.j
 import { StreamStatusException } from './StreamStatusException.js';
 import { INDICADORES_INTERNACIONAL_TORRENTS } from '../titulos/TechnicalWords.js';
 import { isExcludedRelease } from '../lib/releaseFilter.js';
+import { fetchExternalAddonStreams } from '../catalogo/ExternalAddonService.js';
 
 // Legendado indicators da fonte unica (TechnicalWords)
 const LEGENDADO_REGEX = new RegExp(
@@ -138,16 +139,36 @@ export class StreamHandler {
       // Garantia de que o serviço de magnets está pronto (caso ainda não inicializado)
       await this.magnetService.waitForInitialization();
 
-      const dbResult = await this.getStreamsFromDatabase(request);
+      // DB + external addons em paralelo — externos sempre rodam, independente do DB
+      const [dbResult, externalStreams] = await Promise.all([
+        this.getStreamsFromDatabase(request),
+        this.getExternalAddonStreams(request),
+      ]);
+
       if (dbResult.success && dbResult.streams.length > 0) {
         this.stats.servedFromDatabase++;
-        return { streams: this.deduplicateStreamsByInfoHash(dbResult.streams) };
+        const merged = this.deduplicateStreamsByInfoHash([
+          ...dbResult.streams,
+          ...externalStreams,
+        ]);
+        return { streams: merged };
       }
 
+      // Sem DB: tenta catálogo/scraping (que já inclui externos internamente)
+      // Externos já foram buscados acima; passa-os junto ao resultado do catálogo
       const catalogResult = await this.getStreamsFromCatalog(request);
       if (catalogResult.success && catalogResult.streams.length > 0) {
         this.stats.servedFromCatalog++;
-        return { streams: this.deduplicateStreamsByInfoHash(catalogResult.streams) };
+        const merged = this.deduplicateStreamsByInfoHash([
+          ...catalogResult.streams,
+          ...externalStreams,
+        ]);
+        return { streams: merged };
+      }
+
+      // Só externos (sem DB nem catálogo)
+      if (externalStreams.length > 0) {
+        return { streams: this.deduplicateStreamsByInfoHash(externalStreams) };
       }
 
       // Sem streams no DB nem no catálogo → retorna vazio (sem resultado fake de "Baixando")
@@ -253,6 +274,23 @@ export class StreamHandler {
       if (hash && seedsByHash.has(hash)) {
         t.seeders = seedsByHash.get(hash)!;
       }
+    }
+  }
+
+  private async getExternalAddonStreams(request: StreamRequest): Promise<Stream[]> {
+    if (!process.env.EXTERNAL_ADDON_MANIFESTS?.trim()) return [];
+    try {
+      const id = request.imdbId || request.id;
+      const streams = await fetchExternalAddonStreams(request.type, id);
+      if (streams.length > 0) {
+        this.logger.debug('StreamHandler: externos recebidos', { count: streams.length, id });
+      }
+      return streams;
+    } catch (err) {
+      this.logger.warn('StreamHandler: falha ao buscar externos', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [];
     }
   }
 
