@@ -13,6 +13,7 @@ import { StreamStatusException } from './StreamStatusException.js';
 import { INDICADORES_INTERNACIONAL_TORRENTS } from '../titulos/TechnicalWords.js';
 import { isExcludedRelease } from '../lib/releaseFilter.js';
 import { fetchExternalAddonStreams } from '../catalogo/ExternalAddonService.js';
+import { searchBetor } from '../services/scraper/betorScraper.js';
 
 // Legendado indicators da fonte unica (TechnicalWords)
 const LEGENDADO_REGEX = new RegExp(
@@ -140,9 +141,10 @@ export class StreamHandler {
       await this.magnetService.waitForInitialization();
 
       // DB + external addons em paralelo — externos sempre rodam, independente do DB
-      const [dbResult, externalStreams] = await Promise.all([
+      const [dbResult, externalStreams, betorStreams] = await Promise.all([
         this.getStreamsFromDatabase(request),
         this.getExternalAddonStreams(request),
+        this.getBetorStreams(request),
       ]);
 
       if (dbResult.success && dbResult.streams.length > 0) {
@@ -150,6 +152,7 @@ export class StreamHandler {
         const merged = this.deduplicateStreamsByInfoHash([
           ...dbResult.streams,
           ...externalStreams,
+          ...betorStreams,
         ]);
         return { streams: merged };
       }
@@ -162,13 +165,14 @@ export class StreamHandler {
         const merged = this.deduplicateStreamsByInfoHash([
           ...catalogResult.streams,
           ...externalStreams,
+          ...betorStreams,
         ]);
         return { streams: merged };
       }
 
       // Só externos (sem DB nem catálogo)
-      if (externalStreams.length > 0) {
-        return { streams: this.deduplicateStreamsByInfoHash(externalStreams) };
+      if (externalStreams.length > 0 || betorStreams.length > 0) {
+        return { streams: this.deduplicateStreamsByInfoHash([...externalStreams, ...betorStreams]) };
       }
 
       // Sem streams no DB nem no catálogo → retorna vazio (sem resultado fake de "Baixando")
@@ -290,6 +294,35 @@ export class StreamHandler {
       this.logger.warn('StreamHandler: falha ao buscar externos', {
         error: err instanceof Error ? err.message : String(err),
       });
+      return [];
+    }
+  }
+
+  private async getBetorStreams(request: StreamRequest): Promise<Stream[]> {
+    const enabled = !['0', 'false', 'off', 'no'].includes(
+      (process.env.SCRAPER_BETOR_ENABLED ?? '').trim().toLowerCase()
+    );
+    if (!enabled) return [];
+    const baseId = (request.imdbId || request.id || '').match(/^tt\d+/i)?.[0];
+    if (!baseId) return [];
+    try {
+      const match = request.id.match(/tt\d+:(\d+):(\d+)/);
+      const results = await searchBetor(request.title || '', request.type, baseId, {
+        season: request.season ?? (match ? Number(match[1]) : undefined),
+        episode: request.episode ?? (match ? Number(match[2]) : undefined),
+      });
+      const streams: Stream[] = [];
+      for (const torrent of results) {
+        const formatted = await this.streamFormatter.createMultipleQualityStreams(
+          torrent, request, null, request.type,
+          torrent.season, torrent.episode, false, undefined, false
+        );
+        streams.push(...formatted);
+      }
+      if (streams.length) this.logger.debug('StreamHandler: Betor recebido', { count: streams.length, id: baseId });
+      return streams;
+    } catch (error) {
+      this.logger.warn('StreamHandler: Betor falhou', { error: error instanceof Error ? error.message : String(error) });
       return [];
     }
   }

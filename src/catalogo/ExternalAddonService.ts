@@ -15,8 +15,23 @@ import axios from 'axios';
 import { Logger } from '../utils/logger.js';
 import { Stream } from '../types/index.js';
 import { gerarUrlResolve } from '../magnet/magnetHelper.js';
+import { QualityDetector } from '../lib/qualityDetector.js';
 
 const logger = new Logger('ExternalAddonService');
+const qualityDetector = QualityDetector.getInstance();
+
+function formatExternalStreamTitle(raw: StremioStream, addonName: string): { name: string; title: string } {
+  const rawTitle = raw.title || raw.description || raw.name || addonName;
+  const lines = rawTitle.split('\n').map(line => line.trim()).filter(Boolean);
+  const main = lines[0] || addonName;
+  const quality = qualityDetector.extractBestQuality(rawTitle) || 'HD';
+  const technical = lines.slice(1).filter(line => !/[🔍⚙️]/.test(line));
+  const size = rawTitle.match(/💾\s*[^\n]+/i)?.[0] || '';
+  const language = /dual|dublado|pt-?br|🇧🇷/i.test(rawTitle) ? '🌐 PT-BR 🇧🇷' : '';
+  const indexer = `👤 0 🔍 ${addonName}`;
+  const details = [size, indexer, `💿 ${quality}`, language, ...technical].filter(Boolean).join(' ');
+  return { name: `PJBR\n${quality}`, title: `${main}\n${details}` };
+}
 
 interface AddonManifest {
   id: string;
@@ -132,8 +147,9 @@ async function stremioStreamToStream(
   if (!s.url && !s.infoHash) return null;
 
   // Stremio exige title não-vazio para exibir o stream
-  const title = s.title || s.description || s.name || addonName;
-  const name = s.name || addonName;
+  const formatted = formatExternalStreamTitle(s, addonName);
+  const title = formatted.title;
+  const name = formatted.name;
 
   const stream: Stream = {
     name,
