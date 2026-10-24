@@ -59,7 +59,7 @@ export const manifest = {
         {
             key: 'excludeKeywords',
             type: 'checkbox',
-            title: 'Excluir keywords ruins (CAM, LAT, Cinecalidad, sample...)',
+            title: 'Excluir keywords ruins (CAM, Dual-LAT, Cinecalidad, sample...)',
             required: false
         },
         {
