@@ -57,13 +57,35 @@ app.use((req: any, res: any, next: any) => {
 });
 
 // Gera o token encriptado usado na URL de manifest (chama isso o "configure" antes de instalar)
-app.post('/api/encrypt-config', (req: any, res: any) => {
+app.post('/api/encrypt-config', async (req: any, res: any) => {
     const { apiKey, p2p, excludeKeywords, excludeQuality } = req.body || {};
     const isP2p = !!p2p;
     
     // apiKey só é obrigatória se o modo P2P NÃO estiver ativado
     if (!isP2p && (!apiKey || typeof apiKey !== 'string')) {
         return res.status(400).json({ success: false, error: 'apiKey é obrigatória quando o modo P2P não está ativo' });
+    }
+
+    if (!isP2p) {
+        try {
+            const validation = await fetch('https://api.torbox.app/v1/api/user/me', {
+                headers: { Authorization: `Bearer ${apiKey.trim()}` },
+                signal: AbortSignal.timeout(10000),
+            });
+            if (!validation.ok) {
+                return res.status(401).json({
+                    success: false,
+                    error: validation.status === 401
+                        ? 'API Key do Torbox inválida ou expirada.'
+                        : `Torbox recusou API Key (HTTP ${validation.status}).`,
+                });
+            }
+        } catch {
+            return res.status(503).json({
+                success: false,
+                error: 'Não foi possível validar API Key no Torbox agora. Tente novamente.',
+            });
+        }
     }
     
     const token = encryptConfig({ apiKey: apiKey || '', p2p: isP2p, excludeKeywords: !!excludeKeywords, excludeQuality: !!excludeQuality });

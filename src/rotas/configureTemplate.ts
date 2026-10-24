@@ -574,13 +574,10 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
                 installLink.href = 'stremio://' + window.location.hostname + ':' + window.location.port + path;
                 directUrl.value  = base + path;
                 urlBlock.style.display = 'block';
-            } catch {
-                const path = isP2p
-                    ? '/p2p=true/manifest.json'
-                    : '/torbox=' + encodeURIComponent(apiKey) + '/manifest.json';
-                installLink.href = 'stremio://' + window.location.hostname + ':' + window.location.port + path;
-                directUrl.value  = base + path;
-                urlBlock.style.display = 'block';
+            } catch (err) {
+                installLink.href = '#';
+                urlBlock.style.display = 'none';
+                showToast(err.message || 'API Key inválida ou Torbox indisponível.');
             }
         }
 
