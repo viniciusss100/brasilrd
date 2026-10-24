@@ -122,32 +122,13 @@ export class CatalogProvider {
     const cached = this.getFromCache(cacheKey);
     if (cached !== null) return cached;
 
-    let allStreams: Stream[] = [];
-
     // DB query já foi feita pelo StreamHandler - vai direto pro JSON
     const jsonStreams = await this.getStreamsFromJson(request, season, episode);
-    allStreams.push(...jsonStreams);
 
-    // Streams de addons externos (EXTERNAL_ADDON_MANIFESTS)
-    if (process.env.EXTERNAL_ADDON_MANIFESTS?.trim()) {
-      try {
-        const externalId = request.imdbId || request.id;
-        const externalStreams = await fetchExternalAddonStreams(request.type, externalId);
-        if (externalStreams.length > 0) {
-          this.logger.debug('Streams de addons externos', { count: externalStreams.length, id: externalId });
-          allStreams.push(...externalStreams);
-        }
-      } catch (err) {
-        this.logger.warn('Erro ao buscar streams externos', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
+    const uniqueJson = this.removeDuplicatesByInfoHash(jsonStreams);
 
-    const uniqueStreams = this.removeDuplicatesByInfoHash(allStreams);
-    uniqueStreams.forEach(s => metricsService.recordStreamReturned(request.type, this.extractStreamQuality(s)));
-
-    if (uniqueStreams.length === 0) {
+    if (uniqueJson.length === 0) {
+      // Sem cache local: dispara scraping + addons externos em paralelo
       const shouldScrape = await this.shouldAttemptScraping(request);
       if (!shouldScrape) {
         this.saveToCache(cacheKey, []);
@@ -157,29 +138,65 @@ export class CatalogProvider {
 
       this.markScrapingStart(request);
       try {
-        this.logger.debug(` Iniciando scraping para ${request.imdbId || request.id}`);
-        const scraped = await this.performIntelligentScraping(request, season, episode);
-        const scrapedUnique = this.removeDuplicatesByInfoHash(scraped);
-        scrapedUnique.forEach(s => metricsService.recordStreamReturned(request.type, this.extractStreamQuality(s)));
+        this.logger.debug(`Iniciando scraping para ${request.imdbId || request.id}`);
+
+        // Scraping nativo + addons externos em paralelo
+        const [scraped, externalStreams] = await Promise.all([
+          this.performIntelligentScraping(request, season, episode),
+          this.fetchExternalStreams(request),
+        ]);
+
+        const combined = this.removeDuplicatesByInfoHash([...scraped, ...externalStreams]);
+        combined.forEach(s => metricsService.recordStreamReturned(request.type, this.extractStreamQuality(s)));
+
         this.logger.info('📋 Catálogo (scraped)', {
           imdbId: request.imdbId || request.id, season, episode,
-          total: scrapedUnique.length,
-          qualidades: [...new Set(scrapedUnique.map(s => this.extractStreamQuality(s)))],
+          total: combined.length,
+          scraped: scraped.length,
+          externos: externalStreams.length,
+          qualidades: [...new Set(combined.map(s => this.extractStreamQuality(s)))],
         });
-        this.saveToCache(cacheKey, scrapedUnique);
-        return scrapedUnique;
+        this.saveToCache(cacheKey, combined);
+        return combined;
       } finally {
         this.markScrapingEnd(request);
       }
     }
 
+    // Cache local existe: retorna imediatamente + busca externos sem bloquear
+    // (externos não são cacheados junto para não interferir no TTL longo do cache local)
+    const externalStreams = await this.fetchExternalStreams(request);
+    const allStreams = this.removeDuplicatesByInfoHash([...uniqueJson, ...externalStreams]);
+
+    allStreams.forEach(s => metricsService.recordStreamReturned(request.type, this.extractStreamQuality(s)));
     this.logger.info('📋 Catálogo (cached)', {
       imdbId: request.imdbId || request.id, season, episode,
-      total: uniqueStreams.length,
-      qualidades: [...new Set(uniqueStreams.map(s => this.extractStreamQuality(s)))],
+      total: allStreams.length,
+      cached: uniqueJson.length,
+      externos: externalStreams.length,
+      qualidades: [...new Set(allStreams.map(s => this.extractStreamQuality(s)))],
     });
-    this.saveToCache(cacheKey, uniqueStreams);
-    return uniqueStreams;
+    // Salva no cache apenas os streams locais (externos têm TTL próprio)
+    this.saveToCache(cacheKey, uniqueJson);
+    return allStreams;
+  }
+
+  /** Busca streams de addons externos configurados via EXTERNAL_ADDON_MANIFESTS */
+  private async fetchExternalStreams(request: any): Promise<Stream[]> {
+    if (!process.env.EXTERNAL_ADDON_MANIFESTS?.trim()) return [];
+    try {
+      const externalId = request.imdbId || request.id;
+      const streams = await fetchExternalAddonStreams(request.type, externalId);
+      if (streams.length > 0) {
+        this.logger.debug('Streams de addons externos recebidos', { count: streams.length, id: externalId });
+      }
+      return streams;
+    } catch (err) {
+      this.logger.warn('Erro ao buscar streams externos', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [];
+    }
   }
 
   private async performIntelligentScraping(request: any, season?: number, episode?: number): Promise<Stream[]> {
