@@ -29,9 +29,12 @@ const EXCLUDE_QUALITY_REGEX = /\b(?:CAMRip|CAM|HDTC|TC)\b/i;
 
 function streamIsExcluded(stream: Stream, request: StreamRequest): boolean {
   const filename = String(stream.behaviorHints?.filename || '');
-  const text = `${stream.title || ''} ${filename}`;
-  if (request.config?.excludeKeywords && EXCLUDE_FILENAME_REGEX.test(text)) return true;
-  if (request.config?.excludeQuality && EXCLUDE_QUALITY_REGEX.test(text)) return true;
+  const text = `${stream.title || ''} ${filename}`.toLowerCase();
+  // Externo pode manter metadados no name/description; inclui todos campos
+  // usados por clientes Stremio/Nuvio antes de aplicar filtros.
+  const searchable = `${text} ${stream.name || ''} ${stream.description || ''}`.toLowerCase();
+  if (request.config?.excludeKeywords && EXCLUDE_FILENAME_REGEX.test(searchable)) return true;
+  if (request.config?.excludeQuality && EXCLUDE_QUALITY_REGEX.test(searchable)) return true;
   return false;
 }
 

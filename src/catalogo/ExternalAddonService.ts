@@ -186,8 +186,8 @@ async function stremioStreamToStream(
     title,
     behaviorHints: {
       ...(s.behaviorHints as any),
-      filename: s.behaviorHints?.filename || s.title || s.name || addonName,
-      streamQuality: qualityDetector.extractBestQuality(title) || 'HD',
+      filename: formatted.filename,
+      streamQuality: qualityDetector.extractBestQuality(formatted.filename) || qualityDetector.extractBestQuality(title) || 'HD',
       ...(formatted.sizeBytes !== undefined ? { videoSize: formatted.sizeBytes } : {}),
     },
   };
