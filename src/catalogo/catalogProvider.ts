@@ -15,6 +15,7 @@ import { TorrentioService, TorrentioResult } from '../catalogo/TorrentioService.
 import { SimilarityCalculator } from '../titulos/SimilarityCalculator.js';
 import { INDICADORES_INTERNACIONAL_TORRENTS } from '../titulos/TechnicalWords.js';
 import { isExcludedRelease } from '../lib/releaseFilter.js';
+import { fetchExternalAddonStreams } from '../catalogo/ExternalAddonService.js';
 
 // Legendado indicators da fonte unica (TechnicalWords)
 const LEGENDADO_REGEX = new RegExp(
@@ -126,6 +127,22 @@ export class CatalogProvider {
     // DB query já foi feita pelo StreamHandler - vai direto pro JSON
     const jsonStreams = await this.getStreamsFromJson(request, season, episode);
     allStreams.push(...jsonStreams);
+
+    // Streams de addons externos (EXTERNAL_ADDON_MANIFESTS)
+    if (process.env.EXTERNAL_ADDON_MANIFESTS?.trim()) {
+      try {
+        const externalId = request.imdbId || request.id;
+        const externalStreams = await fetchExternalAddonStreams(request.type, externalId);
+        if (externalStreams.length > 0) {
+          this.logger.debug('Streams de addons externos', { count: externalStreams.length, id: externalId });
+          allStreams.push(...externalStreams);
+        }
+      } catch (err) {
+        this.logger.warn('Erro ao buscar streams externos', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     const uniqueStreams = this.removeDuplicatesByInfoHash(allStreams);
     uniqueStreams.forEach(s => metricsService.recordStreamReturned(request.type, this.extractStreamQuality(s)));

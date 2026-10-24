@@ -7,6 +7,7 @@ import { BludvScraper } from './bludvScraper.js';
 import { searchStarck } from './starckScraper.js';
 import { searchHdr } from './hdrScraper.js';
 import { searchTorrentIndexerBludv } from './torrentIndexerScraper.js';
+import { searchBetor } from './betorScraper.js';
 import { EpisodeMatcher } from '../../titulos/episodeMatcher.js';
 
 const logger = new Logger('TorrentScraperService');
@@ -60,6 +61,7 @@ export class TorrentScraperService {
             const starckEnabled = scraperEnabled('SCRAPER_STARCK_ENABLED');
             const hdrEnabled = scraperEnabled('SCRAPER_HDR_ENABLED');
             const torrentIndexerEnabled = scraperEnabled('SCRAPER_TORRENT_INDEXER_ENABLED');
+            const betorEnabled = scraperEnabled('SCRAPER_BETOR_ENABLED');
 
             let tmdbData = null;
             if (imdbId) {
@@ -87,7 +89,7 @@ export class TorrentScraperService {
                 .filter(t => t.length > 3 && latinSafe(t) && !seenAlt.has(t.toLowerCase()) && seenAlt.add(t.toLowerCase()))
                 .slice(0, 2);
 
-            const [wpResults, starckResults, hdrResults] = await Promise.all([
+            const [wpResults, starckResults, hdrResults, betorResults] = await Promise.all([
                 // WordPress (Comando/DarkMahou/Starck) + Bludv.
                 // Para anime, apenas o DarkMahou é consultado (filtrado no wordpressScraper);
                 // BLUDV/Starck/HDR são pulados (indexam só filmes/séries).
@@ -135,10 +137,18 @@ export class TorrentScraperService {
                         .filter(t => { if (seen.has(t.infoHash)) return false; seen.add(t.infoHash); return true; })
                         .map(r => this.mapHdrResult(r, type))
                         .filter((r): r is TorrentResult => r !== null);
-                }).catch(() => []), [])
+                }).catch(() => []), []),
+
+                // Betor — busca por imdb_id quando disponível, fallback por título PT
+                betorEnabled ? withTimeout(
+                    searchBetor(qPt, type, imdbId, {
+                        season: targetSeason,
+                    }).catch(() => []),
+                    []
+                ) : Promise.resolve([])
             ]);
 
-            const allResults = [...wpResults, ...starckResults, ...hdrResults];
+            const allResults = [...wpResults, ...starckResults, ...hdrResults, ...betorResults];
 
             const duration = Date.now() - startTime;
             if (duration > 5000) {
@@ -383,7 +393,7 @@ export class TorrentScraperService {
     getStats() {
         return {
             versao: this.version,
-            provedoresAtivos: 4 // Bludv, WP Comando, Starck, HDR
+            provedoresAtivos: 5 // Bludv, WP Comando, Starck, HDR, Betor
         };
     }
 }

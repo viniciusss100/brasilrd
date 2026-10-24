@@ -8,6 +8,7 @@ import cors from 'cors';
 import path from 'path';
 import { sequelize } from './database/models.js';
 import { manifest } from './rotas/manifest.js';
+import { p2pEnabled } from './rotas/manifest.js';
 import { configureTemplate } from './rotas/configureTemplate.js';
 import { createStremioBuilder, getStremioRouter } from './rotas/streamHandlerBuilder.js';
 import { setupBasicRoutes } from './rotas/basicRoutes.js';
@@ -138,7 +139,7 @@ app.get('/configure', configureDebugMiddleware(), (req: any, res: any) => {
     res.setHeader('content-type', 'text/html');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'max-age=3600, public');
-    res.end(configureTemplate(manifest));
+    res.end(configureTemplate(manifest, '', p2pEnabled));
 });
 
 // Configure via Torbox (compatível com Nuvio — a chave vem no path)
@@ -153,7 +154,7 @@ app.get('/torbox=:apiKey/configure', configureDebugMiddleware(), (req: any, res:
     res.setHeader('content-type', 'text/html');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'max-age=3600, public');
-    res.end(configureTemplate(manifest, req.params.apiKey || ''));
+    res.end(configureTemplate(manifest, req.params.apiKey || '', p2pEnabled));
 });
 
 // Configure via RealDebrid (compatível com Nuvio)
@@ -168,7 +169,7 @@ app.get('/realdebrid=:apiKey/configure', configureDebugMiddleware(), (req: any, 
     res.setHeader('content-type', 'text/html');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'max-age=3600, public');
-    res.end(configureTemplate(manifest, req.params.apiKey || ''));
+    res.end(configureTemplate(manifest, req.params.apiKey || '', p2pEnabled));
 });
 
 // ROTA TORRENTIO 1: /torbox=APIKEY/manifest.json

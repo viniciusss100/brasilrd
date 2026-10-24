@@ -2,267 +2,607 @@ import { Logger } from '../utils/logger.js';
 
 const logger = new Logger('ConfigureTemplate');
 
-export const configureTemplate = (manifest: any, apiKey: string = '') => {
-    const background = manifest.background || 'https://dl.strem.io/addon-background.jpg';
-    const logo = manifest.logo || 'https://dl.strem.io/addon-logo.png';
+export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled: boolean = true) => {
+    const logo = manifest.logo || '';
     const inicialApiKey = apiKey || '';
-    
+    const showP2p = p2pEnabled;
+
     return `<!DOCTYPE html>
-    <html style="background-image: url(${background});">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>${manifest.name} - Stremio Addon</title>
-        
-        <style>
-            * { box-sizing: border-box; }
-            body, html { margin: 0; padding: 0; width: 100%; min-height: 100%; }
-            body { padding: 2vh; font-size: 2.2vh; }
-            html { 
-                background-size: cover; 
-                background-position: center center; 
-                background-repeat: no-repeat; 
-                box-shadow: inset 0 0 0 2000px rgb(0 0 0 / 60%); 
-            }
-            body { display: flex; font-family: 'Open Sans', Arial, sans-serif; color: white; }
-            h1 { font-size: 3.8vh; font-weight: 700; margin: 0; }
-            h2 { font-size: 2.2vh; font-weight: normal; font-style: italic; opacity: 0.8; margin:0; }
-            h3 { font-size: 2.2vh; margin: 0; }
-            p { font-size: 1.75vh; margin: 0; text-shadow: 0 0 1vh rgba(0, 0, 0, 0.15); }
-            ul { font-size: 1.75vh; margin: 0; margin-top: 1vh; padding-left: 3vh; }
-            a { color: white; text-decoration: none; }
-            a.api-link { color: #34c5dbff; font-weight: 600; }
-            a.api-link:hover { text-decoration: underline; }
-            
-            button {
-                border: 0; outline: 0; color: white; background: #8A5AAB;
-                padding: 1.2vh 3.5vh; margin: auto; text-align: center;
-                font-family: 'Open Sans', Arial, sans-serif; font-size: 2.2vh;
-                font-weight: 600; cursor: pointer; display: block;
-                box-shadow: 0 0.5vh 1vh rgba(0, 0, 0, 0.2);
-                transition: box-shadow 0.1s ease-in-out;
-            }
-            button:hover { box-shadow: none; }
-            button:active { box-shadow: 0 0 0 0.5vh white inset; }
-            
-            #addon { width: 40vh; margin: auto; }
-            .logo { height: 14vh; width: 14vh; margin: auto; margin-bottom: 3vh; }
-            .logo img { width: 100%; }
-            .name { line-height: 5vh; text-align: center; }
-            .version { line-height: 5vh; opacity: 0.8; margin-bottom: 2vh; text-align: center; }
-            .description { text-align: center; }
-            .separator { margin-bottom: 4vh; }
-            .form-element { margin-bottom: 2vh; }
-            
-            input[type="text"] {
-                width: 100%; padding: 8px; border: 1px solid #ccc;
-                border-radius: 3px; font-size: 14px; margin-top: 0.5vh;
-            }
-            
-            .info-text {
-                font-size: 1.8vh; color: #ecf0f1; margin-top: 1.5vh;
-                line-height: 1.4; text-shadow: 0 0 1vh rgba(0, 0, 0, 0.3);
-            }
-            
-            .warning-text {
-                font-size: 1.7vh; color: #fff428ff; margin-top: 2vh;
-                padding: 1.5vh; background: rgba(243, 156, 18, 0.15);
-                border-radius: 5px; border-left: 4px solid #f39c12;
-                line-height: 1.5; text-shadow: 0 0 1vh rgba(0, 0, 0, 0.3);
-            }
-            
-            .warning-text strong { color: #fce729ff; }
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>${manifest.name}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-            /* Mobile */
-            @media (max-width: 768px) {
-                body { padding: 2.5vh 2vh; }
-                #addon { width: 100%; max-width: 50vh; }
-                h1 { font-size: 4.2vh; }
-                h2, h3 { font-size: 2.2vh; }
-                p, ul, .info-text { font-size: 1.8vh; }
-                .warning-text { font-size: 1.7vh; }
-                button { width: 100%; padding: 1.6vh; font-size: 2.2vh; }
-                input[type="text"] { padding: 1.3vh; font-size: 2vh; }
-                .logo { height: 11vh; width: 11vh; }
-                .separator { margin-bottom: 2.5vh; }
-            }
+        :root {
+            --bg: #0d0d0f;
+            --surface: #16161a;
+            --surface2: #1e1e24;
+            --border: rgba(255,255,255,0.08);
+            --accent: #7c3aed;
+            --accent-light: #8b5cf6;
+            --accent-glow: rgba(124,58,237,0.25);
+            --text: #f1f0f5;
+            --muted: #8b8a97;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --radius: 14px;
+            --radius-sm: 8px;
+        }
 
-            @media (max-width: 375px) {
-                h1 { font-size: 3.6vh; }
-                h2, h3 { font-size: 2vh; }
-                button { font-size: 2vh; padding: 1.3vh; }
-                .logo { height: 9vh; width: 9vh; }
-            }
-        </style>
-        
-        <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,600,700&display=swap" rel="stylesheet">
-    </head>
-    
-    <body>
-        <div id="addon">
-            <div class="logo">
-                <img src="${logo}" alt="${manifest.name} Logo">
+        html, body {
+            min-height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px 16px;
+        }
+
+        /* Subtle grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(124,58,237,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(124,58,237,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .card {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 440px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow:
+                0 0 0 1px rgba(255,255,255,0.04),
+                0 24px 64px rgba(0,0,0,0.5),
+                0 0 80px var(--accent-glow);
+        }
+
+        /* Top accent bar */
+        .card::before {
+            content: '';
+            display: block;
+            height: 3px;
+            background: linear-gradient(90deg, #7c3aed, #a855f7, #7c3aed);
+            background-size: 200% 100%;
+            animation: shimmer 3s linear infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .card-body {
+            padding: 36px 32px 32px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 32px;
+        }
+
+        .logo-wrap {
+            width: 72px;
+            height: 72px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #3d1a6e, #1e0a3c);
+            border: 1px solid rgba(124,58,237,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 24px var(--accent-glow);
+            overflow: hidden;
+        }
+
+        .logo-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* SVG fallback icon */
+        .logo-wrap .icon-fallback {
+            width: 40px;
+            height: 40px;
+            fill: #a855f7;
+        }
+
+        .title-block {
+            text-align: center;
+        }
+
+        .addon-name {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            color: var(--text);
+        }
+
+        .addon-version {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 3px;
+            font-weight: 500;
+        }
+
+        /* Feature chips */
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 28px;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 11px;
+            border-radius: 999px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--muted);
+        }
+
+        .chip-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-light);
+            flex-shrink: 0;
+        }
+
+        /* Divider */
+        .divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 24px 0;
+        }
+
+        /* Section label */
+        .section-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        /* Input */
+        .input-wrap {
+            position: relative;
+        }
+
+        .input-wrap svg {
+            position: absolute;
+            left: 13px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            stroke: var(--muted);
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            pointer-events: none;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 11px 12px 11px 38px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 13.5px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input[type="text"]:focus {
+            border-color: var(--accent-light);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        input[type="text"]::placeholder { color: var(--muted); }
+        input[type="text"]:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Toggle (P2P) */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            user-select: none;
+            margin-top: 12px;
+        }
+        .toggle-row:hover { border-color: rgba(255,255,255,0.14); }
+
+        .toggle-label {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .toggle-title { font-size: 13.5px; font-weight: 500; color: var(--text); }
+        .toggle-desc { font-size: 11px; color: var(--muted); }
+
+        /* Switch */
+        .switch {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .slider {
+            position: absolute;
+            inset: 0;
+            background: var(--border);
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .slider::after {
+            content: '';
+            position: absolute;
+            left: 3px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            transition: left 0.2s;
+        }
+        .switch input:checked ~ .slider { background: var(--accent); }
+        .switch input:checked ~ .slider::after { left: 21px; }
+
+        /* Torbox referral button */
+        .torbox-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 11px;
+            background: rgba(124,58,237,0.08);
+            border: 1px solid rgba(124,58,237,0.25);
+            border-radius: var(--radius-sm);
+            color: #a78bfa;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s, border-color 0.2s;
+            margin-bottom: 16px;
+        }
+        .torbox-btn:hover {
+            background: rgba(124,58,237,0.15);
+            border-color: rgba(124,58,237,0.45);
+            color: #c4b5fd;
+        }
+        .torbox-btn svg {
+            width: 15px;
+            height: 15px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
+        /* Install button */
+        .install-btn {
+            display: block;
+            width: 100%;
+            padding: 13px;
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            border: none;
+            border-radius: var(--radius-sm);
+            color: #fff;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            transition: opacity 0.15s, transform 0.1s, box-shadow 0.2s;
+            box-shadow: 0 4px 16px rgba(109,40,217,0.4);
+        }
+        .install-btn:hover { opacity: 0.9; box-shadow: 0 6px 20px rgba(109,40,217,0.55); }
+        .install-btn:active { transform: scale(0.985); }
+
+        /* Manifest URL field */
+        .url-block {
+            margin-top: 16px;
+            display: none;
+        }
+
+        .url-field {
+            display: flex;
+            gap: 8px;
+        }
+
+        input[type="text"].url-input {
+            padding-left: 12px;
+            flex: 1;
+            font-size: 11.5px;
+            background: var(--surface2);
+            color: var(--muted);
+            cursor: pointer;
+        }
+
+        .copy-btn {
+            flex-shrink: 0;
+            padding: 0 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--muted);
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s;
+            white-space: nowrap;
+        }
+        .copy-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+        .copy-btn.copied { color: var(--success); border-color: var(--success); }
+
+        .url-label {
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(10px);
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 18px;
+            font-size: 13px;
+            color: var(--text);
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 99;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Mobile */
+        @media (max-width: 480px) {
+            .card-body { padding: 28px 20px 24px; }
+            .addon-name { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="card-body">
+
+            <!-- Header -->
+            <div class="header">
+                <div class="logo-wrap" id="logoWrap">
+                    <img src="${logo}" alt="${manifest.name}" id="logoImg" onerror="this.style.display='none';document.getElementById('iconFallback').style.display='block'">
+                    <svg id="iconFallback" class="icon-fallback" style="display:none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <div class="title-block">
+                    <div class="addon-name">${manifest.name}</div>
+                    <div class="addon-version">v${manifest.version}</div>
+                </div>
             </div>
-            
-            <h1 class="name">${manifest.name}</h1>
-            <h2 class="version">v${manifest.version}</h2>
-            <h2 class="description">${manifest.description}</h2>
-            
-            <div class="separator"></div>
-            
-            <h3>Este addon oferece:</h3>
-            <ul>
-                <li>Filmes</li>
-                <li>Séries</li>
-            </ul>
-            
-            <div class="separator"></div>
-            
-            <form class="pure-form" id="mainForm">
-                <div class="form-element">
-                    <div class="label-to-top">
-                        Chave de API do Torbox 
-                        <a href="https://torbox.app/" target="_blank" class="api-link">
-                            (Obtenha sua API aqui)
-                        </a>
-                    </div>
-                    
-                    <input type="text" 
-                           id="${manifest.config[0].key}" 
-                           name="${manifest.config[0].key}" 
-                           class="full-width" 
-                           placeholder="Cole sua chave de API do Torbox"
-                           value="${inicialApiKey}"
-                           autocomplete="off" />
-                    
-                    <div class="info-text">
-                        Documentação completa: 
-                        <a href="https://github.com/onikopolar/BRASIL-RD-ADDON" target="_blank" class="api-link">
-                            GitHub Oficial
-                        </a>
-                    </div>
-                    
-                    <div class="warning-text">
-                        <strong>Aviso de Segurança:</strong> Este é o repositório oficial mantido por ONIKO. 
-                        Não me responsabilizo pela segurança de sua chave API em forks ou versões não oficiais.
-                    </div>
-                </div>
 
-                <div class="form-element" style="display:flex; align-items:center; gap:1vh;">
-                    <input type="checkbox" id="p2pMode" name="p2pMode" style="width:auto; margin:0;" />
-                    <label for="p2pMode" style="cursor:pointer;">
-                        Modo P2P puro (magnet direto, sem debrid — mais trackers)
-                    </label>
-                </div>
-            </form>
-            
-            <div class="separator"></div>
-            
-            <a id="installLink" class="install-link" href="#">
-                <button name="Install">INSTALL</button>
+            <!-- Feature chips -->
+            <div class="chips">
+                <div class="chip"><span class="chip-dot"></span>Filmes</div>
+                <div class="chip"><span class="chip-dot"></span>Séries</div>
+                <div class="chip"><span class="chip-dot"></span>Anime</div>
+                <div class="chip"><span class="chip-dot"></span>Torbox</div>
+                ${showP2p ? `<div class="chip"><span class="chip-dot"></span>P2P</div>` : ''}
+                <div class="chip"><span class="chip-dot"></span>PT-BR</div>
+            </div>
+
+            <hr class="divider">
+
+            <!-- Torbox referral -->
+            <a class="torbox-btn" href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" rel="noopener">
+                <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Assinar Torbox
             </a>
-            
-            <div class="separator"></div>
-            
-            <div id="directUrlSection" class="form-element" style="display: none;">
-                <div class="label-to-top" style="margin-bottom: 0.5vh;">
-                    URL do Manifest (para AlOManager / uso manual)
-                </div>
-                <input id="directUrl" type="text" readonly onclick="this.select();document.execCommand('copy');var t=this;t.style.background='rgba(138,90,171,0.3)';setTimeout(function(){t.style.background='rgba(255,255,255,0.1)'},600);" 
-                       style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 14px; margin-top: 0.5vh; background: rgba(255,255,255,0.1); color: #ccc; cursor: pointer;" 
-                       title="Clique para copiar" />
+
+            <!-- API Key -->
+            <div class="section-label">Chave de API</div>
+            <div class="input-wrap">
+                <svg viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                <input type="text"
+                       id="${manifest.config[0].key}"
+                       name="${manifest.config[0].key}"
+                       placeholder="Cole sua chave de API do Torbox"
+                       value="${inicialApiKey}"
+                       autocomplete="off"
+                       spellcheck="false">
             </div>
+
+            <!-- P2P Toggle -->
+            ${showP2p ? `
+            <div class="toggle-row" onclick="toggleP2p()">
+                <div class="toggle-label">
+                    <span class="toggle-title">Modo P2P</span>
+                    <span class="toggle-desc">Magnet direto, sem debrid</span>
+                </div>
+                <label class="switch" onclick="event.stopPropagation()">
+                    <input type="checkbox" id="p2pMode" onchange="toggleP2p()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            ` : `<input type="hidden" id="p2pMode" value="false">`}
+
+            <hr class="divider">
+
+            <!-- Install -->
+            <a id="installLink" class="install-btn" href="#">Instalar no Stremio</a>
+
+            <!-- Manifest URL -->
+            <div class="url-block" id="urlBlock">
+                <div class="url-label">URL do manifest (AIOStreams / uso manual)</div>
+                <div class="url-field">
+                    <input type="text" class="url-input" id="directUrl" readonly
+                           onclick="this.select()" title="Clique para selecionar">
+                    <button class="copy-btn" id="copyBtn" onclick="copyUrl()">Copiar</button>
+                </div>
+            </div>
+
         </div>
-        
-        <script>
-            console.log('[Brasil RD] Configuração v3.0.0 - URL de manifest encriptada + P2P opcional');
-            
-            const apiKeyInput = document.getElementById('${manifest.config[0].key}');
-            const p2pCheckbox = document.getElementById('p2pMode');
-            const installLink = document.getElementById('installLink');
-            const directUrl = document.getElementById('directUrl');
-            const directUrlSection = document.getElementById('directUrlSection');
-            const mainForm = document.getElementById('mainForm');
+    </div>
 
-            let debounceTimer = null;
+    <div class="toast" id="toast"></div>
 
-            function toggleP2p() {
-                if (p2pCheckbox.checked) {
-                    apiKeyInput.disabled = true;
-                    apiKeyInput.style.opacity = '0.5';
-                } else {
-                    apiKeyInput.disabled = false;
-                    apiKeyInput.style.opacity = '1';
-                }
-                scheduleUpdate();
+    <script>
+        const apiKeyInput = document.getElementById('${manifest.config[0].key}');
+        const p2pCheckbox = document.getElementById('p2pMode');
+        const installLink = document.getElementById('installLink');
+        const directUrl   = document.getElementById('directUrl');
+        const urlBlock    = document.getElementById('urlBlock');
+        const copyBtn     = document.getElementById('copyBtn');
+        const toast       = document.getElementById('toast');
+
+        // P2P pode estar desabilitado no servidor (input hidden)
+        const p2pAvailable = ${showP2p ? 'true' : 'false'};
+
+        let debounceTimer = null;
+
+        function isP2pActive() {
+            if (!p2pAvailable) return false;
+            return p2pCheckbox && p2pCheckbox.checked;
+        }
+
+        function toggleP2p() {
+            if (!p2pAvailable) return;
+            const isP2p = p2pCheckbox.checked;
+            apiKeyInput.disabled = isP2p;
+            scheduleUpdate();
+        }
+
+        async function updateLink() {
+            const apiKey = apiKeyInput.value.trim();
+            const isP2p  = isP2pActive();
+            const base   = window.location.protocol + '//' + window.location.host;
+
+            if (!isP2p && !apiKey) {
+                installLink.href = '#';
+                urlBlock.style.display = 'none';
+                return;
             }
 
-            async function updateLink() {
-                const apiKey = apiKeyInput.value.trim();
-                const isP2p = p2pCheckbox.checked;
-                const baseUrl = window.location.protocol + '//' + window.location.host;
+            try {
+                const resp = await fetch('/api/encrypt-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiKey, p2p: isP2p })
+                });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || 'erro');
 
-                // Bloqueia apenas se NÃO for P2P e NÃO houver chave API
-                if (!isP2p && !apiKey) {
-                    installLink.href = '#';
-                    directUrl.value = '';
-                    directUrlSection.style.display = 'none';
-                    return;
-                }
-
-                try {
-                    const resp = await fetch('/api/encrypt-config', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ apiKey: apiKey, p2p: isP2p })
-                    });
-                    const data = await resp.json();
-                    if (!data.success) throw new Error(data.error || 'Falha ao gerar link');
-
-                    const manifestPath = '/e/' + data.token + '/manifest.json';
-                    installLink.href = 'stremio://' + window.location.hostname + ':' + window.location.port + manifestPath;
-                    directUrl.value = baseUrl + manifestPath;
-                    directUrlSection.style.display = 'block';
-                } catch (err) {
-                    console.error('[Brasil RD] Erro ao gerar URL encriptada', err);
-                    
-                    // Fallback para URL não encriptada
-                    let fallbackPath = '';
-                    if (isP2p) {
-                        fallbackPath = '/p2p=true/manifest.json';
-                    } else {
-                        fallbackPath = '/torbox=' + encodeURIComponent(apiKey) + '/manifest.json';
-                    }
-                    
-                    installLink.href = 'stremio://' + window.location.hostname + ':' + window.location.port + fallbackPath;
-                    directUrl.value = baseUrl + fallbackPath;
-                    directUrlSection.style.display = 'block';
-                }
+                const path = '/e/' + data.token + '/manifest.json';
+                installLink.href = 'stremio://' + window.location.hostname + ':' + window.location.port + path;
+                directUrl.value  = base + path;
+                urlBlock.style.display = 'block';
+            } catch {
+                const path = isP2p
+                    ? '/p2p=true/manifest.json'
+                    : '/torbox=' + encodeURIComponent(apiKey) + '/manifest.json';
+                installLink.href = 'stremio://' + window.location.hostname + ':' + window.location.port + path;
+                directUrl.value  = base + path;
+                urlBlock.style.display = 'block';
             }
+        }
 
-            function scheduleUpdate() {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(updateLink, 250);
+        function scheduleUpdate() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updateLink, 250);
+        }
+
+        function copyUrl() {
+            const val = directUrl.value;
+            if (!val) return;
+            navigator.clipboard?.writeText(val).catch(() => {
+                directUrl.select();
+                document.execCommand('copy');
+            });
+            copyBtn.textContent = 'Copiado!';
+            copyBtn.classList.add('copied');
+            setTimeout(() => { copyBtn.textContent = 'Copiar'; copyBtn.classList.remove('copied'); }, 2000);
+        }
+
+        function showToast(msg) {
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        installLink.addEventListener('click', (e) => {
+            if (!isP2pActive() && !apiKeyInput.value.trim()) {
+                e.preventDefault();
+                showToast('Insira sua API Key do Torbox.');
             }
-            
-            apiKeyInput.oninput = scheduleUpdate;
-            apiKeyInput.onpaste = () => setTimeout(scheduleUpdate, 100);
-            p2pCheckbox.onchange = toggleP2p;
-            mainForm.onsubmit = (e) => e.preventDefault();
-            
-            installLink.onclick = () => {
-                if (!p2pCheckbox.checked && !apiKeyInput.value.trim()) {
-                    alert('Por favor, insira sua API Key do Torbox.');
-                    return false;
-                }
-                return true;
-            };
+        });
 
-            // Inicializa estado visual correto
-            toggleP2p();
-        </script>
-    </body>
-    </html>`;
+        apiKeyInput.addEventListener('input', scheduleUpdate);
+        apiKeyInput.addEventListener('paste', () => setTimeout(scheduleUpdate, 100));
+
+        document.getElementById('mainForm') && (document.getElementById('mainForm').onsubmit = e => e.preventDefault());
+
+        toggleP2p();
+    </script>
+</body>
+</html>`;
 };
 
-logger.info('ConfigureTemplate v3.0.0 carregado - manifest.json encriptado + modo P2P opcional');
+logger.info('ConfigureTemplate v4.0.0 carregado - UI moderna pjbr');
