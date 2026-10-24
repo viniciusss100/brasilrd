@@ -124,18 +124,22 @@ function stremioStreamToStream(s: StremioStream, addonName: string): Stream | nu
   // Must have either url or infoHash
   if (!s.url && !s.infoHash) return null;
 
+  // Stremio exige title não-vazio para exibir o stream
+  const title = s.title || s.description || s.name || addonName;
+  const name = s.name || addonName;
+
   const stream: Stream = {
-    name: s.name || addonName,
-    title: s.title || s.description || '',
-    behaviorHints: (s.behaviorHints as any) || {},
+    name,
+    title,
+    behaviorHints: {
+      ...(s.behaviorHints as any),
+    },
   };
 
-  if (s.url) {
-    (stream as any).url = s.url;
-  }
+  if (s.url) stream.url = s.url;
   if (s.infoHash) {
-    (stream as any).infoHash = s.infoHash;
-    if (s.fileIdx !== undefined) (stream as any).fileIdx = s.fileIdx;
+    stream.infoHash = s.infoHash;
+    if (s.fileIdx !== undefined) stream.fileIdx = s.fileIdx;
   }
 
   return stream;
@@ -164,11 +168,21 @@ export async function fetchExternalAddonStreams(
           headers: { 'User-Agent': 'Stremio/4.4' },
         });
         const streams: StremioStream[] = Array.isArray(res.data?.streams) ? res.data.streams : [];
+        let aceitos = 0;
         for (const s of streams) {
           const stream = stremioStreamToStream(s, addon.manifest.name);
-          if (stream) results.push(stream);
+          if (stream) {
+            results.push(stream);
+            aceitos++;
+          } else {
+            logger.debug('Stream externo descartado (sem url/infoHash)', {
+              addon: addon.manifest.id,
+              name: s.name,
+              title: (s.title || '').substring(0, 60),
+            });
+          }
         }
-        logger.debug(`Addon externo retornou ${streams.length} streams`, {
+        logger.debug(`Addon externo retornou ${streams.length} streams (${aceitos} aceitos)`, {
           addon: addon.manifest.id,
           type,
           id,
