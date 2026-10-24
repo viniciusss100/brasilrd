@@ -101,7 +101,7 @@ export class StreamFormatter {
     if (debridAtivo) {
       badges.push(emCache ? '⚡️ [TB]' : '[TB]');
     }
-    const addon = (process.env.ADDON_NAME || 'pjbr').trim();
+    const addon = 'PJBR';
     const normalizedQuality = this.normalizarNomeQualidade(qualidade);
     return [...badges, addon, normalizedQuality].join(' ');
   }

@@ -178,7 +178,7 @@ async function stremioStreamToStream(
   const name = formatted.name;
 
   const stream: Stream = {
-    name: `${apiKey ? '[TB] ' : ''}${displayAddonName(addonName)} ${qualityLabel(formatted.name)}`,
+    name: `${apiKey ? '[TB] ' : ''}PJBR ${qualityLabel(formatted.name)}`,
     title,
     behaviorHints: {
       ...(s.behaviorHints as any),
