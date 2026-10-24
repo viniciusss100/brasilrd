@@ -163,6 +163,7 @@ export class StreamHandler {
 
       const allowedExternal = externalStreams.filter(s => !streamIsExcluded(s, request));
       const allowedBetor = betorStreams.filter(s => !streamIsExcluded(s, request));
+      await this.applyDebridCacheBadges([...allowedExternal, ...allowedBetor], request.apiKey);
 
       if (dbResult.success && dbResult.streams.length > 0) {
         this.stats.servedFromDatabase++;
@@ -359,6 +360,35 @@ export class StreamHandler {
       this.logger.warn('StreamHandler: Betor falhou', { error: error instanceof Error ? error.message : String(error) });
       return [];
     }
+  }
+
+  /** Verifica cache Torbox para fontes externas/Betor, não apenas torrents do DB. */
+  private async applyDebridCacheBadges(streams: Stream[], apiKey?: string): Promise<void> {
+    if (!apiKey || streams.length === 0) return;
+    const hashes = streams.map(s => this.extractStreamHash(s)).filter((h): h is string => !!h);
+    if (hashes.length === 0) return;
+    try {
+      const cached = await this.torboxService.checkCachedHashes([...new Set(hashes)], apiKey);
+      for (const stream of streams) {
+        const hash = this.extractStreamHash(stream);
+        if (hash && cached.has(hash)) {
+          const lines = (stream.name || 'PJBR').split('\n');
+          if (!lines[0].includes('⚡️')) lines[0] = `⚡️ [TB]`;
+          stream.name = lines.join('\n');
+        }
+      }
+    } catch (error) {
+      this.logger.debug('Badge de cache não aplicado em fontes externas', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private extractStreamHash(stream: Stream): string | null {
+    const direct = stream.infoHash?.toLowerCase();
+    if (direct && /^[a-f0-9]{40}$/.test(direct)) return direct;
+    const match = stream.url?.match(/\/resolve\/torbox\/[^/]+\/([a-f0-9]{40})\//i);
+    return match?.[1]?.toLowerCase() || null;
   }
 
   private async getStreamsFromDatabase(request: StreamRequest): Promise<DatabaseStreamResult> {

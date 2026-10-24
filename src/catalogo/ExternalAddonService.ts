@@ -21,6 +21,7 @@ const logger = new Logger('ExternalAddonService');
 const qualityDetector = QualityDetector.getInstance();
 
 function formatExternalStreamTitle(raw: StremioStream, addonName: string): { name: string; title: string; filename: string; sizeBytes?: number } {
+  const displayAddon = /stremthru.*torz/i.test(addonName) ? 'Torz' : addonName;
   const hints = raw.behaviorHints || {};
   const rawTitle = [raw.title, raw.description, raw.name, String(hints.filename || '')].filter(Boolean).join('\n') || addonName;
   const lines = rawTitle.split('\n').map(line => line.trim()).filter(Boolean);
@@ -36,11 +37,11 @@ function formatExternalStreamTitle(raw: StremioStream, addonName: string): { nam
     rawTitle.match(/(?:size|tamanho)\s*[:=]?\s*([\d.,]+\s*(?:TB|GB|MB|KB|B))/i)?.[1] || '';
   const seeds = rawTitle.match(/👤\s*(\d+)/)?.[1] || String(hints.seeders ?? hints.seeds ?? '0');
   const language = /dual|dublado|pt-?br|🇧🇷/i.test(rawTitle) ? '🌐 PT-BR 🇧🇷' : '';
-  const indexer = `👤 0 🔍 ${addonName}`;
-  const details = [`💾 ${size || hintedSize || 'N/A'}`, `👤 ${seeds}`, `🔍 ${addonName}`, `💿 ${quality}`, language, ...technical].filter(Boolean).join(' ');
-  const filename = String(hints.filename || lines[0] || addonName);
+  const indexer = `🔍 ${displayAddon}`;
+  const details = [`💾 ${size || hintedSize || 'N/A'}`, `👤 ${seeds}`, indexer, `💿 ${quality}`, language, ...technical].filter(Boolean).join(' ');
+  const filename = String(hints.filename || lines[0] || displayAddon);
   const sizeBytes = typeof hints.videoSize === 'number' ? hints.videoSize : undefined;
-  return { name: `PJBR\n${quality}`, title: `${main}\n${details}`, filename, sizeBytes };
+  return { name: `PJBR\n${quality}`, title: `${main}\n📄 ${filename}\n${details}`, filename, sizeBytes };
 }
 
 function formatBytes(bytes: number): string {
