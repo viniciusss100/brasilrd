@@ -222,15 +222,15 @@ export class StreamHandler {
   private convertToStreamFormat(informativeStream: any): Stream {
     const infoHash = `info-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     return {
-      title: informativeStream.title || 'Brasil RD - Informacao',
-      name: informativeStream.name || 'Brasil RD - Mensagem Informativa',
-      description: informativeStream.description || 'Mensagem informativa do addon Brasil RD',
+      title: informativeStream.title || 'pjbr - Informacao',
+      name: informativeStream.name || 'pjbr - Mensagem Informativa',
+      description: informativeStream.description || 'Mensagem informativa do addon pjbr',
       url: informativeStream.url || 'data:text/plain,Brasil%20RD%20-%20Mensagem%20informativa',
       behaviorHints: { notWebReady: true, bingeGroup: 'br-info' },
       status: 'available',
       infoHash: infoHash,
-      magnet: `brasilrd://info/${infoHash}`,
-      sources: [`brasilrd://info/${infoHash}`]
+      magnet: `pjbr://info/${infoHash}`,
+      sources: [`pjbr://info/${infoHash}`]
     };
   }
 
@@ -431,7 +431,7 @@ export class StreamHandler {
       return { success: true, streams, source: 'database', processingTime: Date.now() - startTime };
     } catch (error) {
       const mensagem = error instanceof Error ? error.message : 'Erro desconhecido';
-      // Banco offline (ex.: host docker 'brasilrd-postgres') não é erro grave;
+      // Banco offline (ex.: host docker 'pjbr-postgres') não é erro grave;
       // o addon segue pelo scraping/catálogo.
       const bancoOffline = /getaddrinfo|ECONNREFUSED|connect ECONN/i.test(mensagem);
       const nivel = bancoOffline ? 'warn' : 'error';

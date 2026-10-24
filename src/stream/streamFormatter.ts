@@ -33,7 +33,7 @@ export class StreamFormatter {
     this.resolveBaseUrl = baseUrl.replace(/\/$/, '');
   }
 
-  // Formato StremThru-style (com identidade Brasil RD)
+  // Formato StremThru-style (com identidade pjbr)
   // Linha 1: titulo completo do torrent
   // Linha 2: 💾 tamanho 👤 seeds 🔍 tracker/provedor
   // Linha 3: 💿 qualidade 🎞️ codec 📺 HDR 🎧 audio 🌐 idioma 📅 data
@@ -94,7 +94,7 @@ export class StreamFormatter {
 
   // Nome da stream estilo StremThru:
   // Linha 1: badges da store (⚡️ quando em cache, [TB] com debrid ativado)
-  // Linha 2: nome do addon (ADDON_NAME permite identificar a instância, ex: brasilrd-vercel)
+  // Linha 2: nome do addon (ADDON_NAME permite identificar a instância, ex: pjbr-vercel)
   // Linha 3: resolucao
   private montarNomeStream(qualidade: string, emCache: boolean, debridAtivo: boolean): string {
     const badges: string[] = [];
@@ -105,7 +105,7 @@ export class StreamFormatter {
     if (badges.length > 0) {
       partes.push(badges.join(' '));
     }
-    partes.push((process.env.ADDON_NAME || 'Brasil RD').trim());
+    partes.push((process.env.ADDON_NAME || 'pjbr').trim());
     partes.push(qualidade);
     return partes.join('\n');
   }
@@ -1092,11 +1092,11 @@ export class StreamFormatter {
   getStats() {
     return {
       versao: '2.2.0',
-      feature: 'Formato StremThru-style com identidade Brasil RD',
+      feature: 'Formato StremThru-style com identidade pjbr',
       linha1: 'Titulo completo do torrent',
       linha2: '💾 tamanho 👤 seeds 🔍 tracker/provedor',
       linha3: '💿 qualidade 🎞️ codec 📺 HDR 🎧 audio 🌐 idioma 📅 data',
-      name: '⚡️ [TB]/[TB]\\nBrasil RD\\n{qualidade} (estilo StremThru)',
+      name: '⚡️ [TB]/[TB]\\npjbr\\n{qualidade} (estilo StremThru)',
       emojis: '💾 👤 🔍 💿 🎞️ 📺 🎧 🌐 📅 ⚡️ [TB]',
       compatibilidade: 'Stremio Web/Desktop/Mobile/TV 100%'
     };

@@ -77,7 +77,7 @@ export class EpisodeMatcher {
   /**
    * Versão que tenta usar títulos de episódios (TMDB) quando disponíveis.
    * Se não casar por título, cai no fallback numérico (arquivoPertenceAoEpisodio).
-   * Portada do upstream BRASIL-RD-ADDON.
+   * Portada do upstream pjbr-ADDON.
    */
   arquivoPertenceAoEpisodioComTitulos(
     caminhoCompleto: string,

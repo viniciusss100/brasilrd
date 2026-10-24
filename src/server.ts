@@ -96,7 +96,7 @@ async function initializeDatabase() {
         await sequelize.authenticate();
     } catch (error) {
         // Banco indisponível (ex.: local sem Postgres, host de rede interna do
-        // docker "brasilrd-postgres") não deve impedir o addon de subir.
+        // docker "pjbr-postgres") não deve impedir o addon de subir.
         // Sem persistência o addon segue funcionando via scraping/catálogo.
         logger.warn('Banco de dados indisponível — seguindo sem persistência', {
             error: error instanceof Error ? error.message : 'Erro desconhecido'
@@ -451,7 +451,7 @@ export async function getApp() {
 async function startServer() {
     try {
         const startupLogger = new Logger('Startup');
-        startupLogger.info(`BRASIL RD Addon starting on port ${process.env.PORT || 7000}`);
+        startupLogger.info(`pjbr Addon starting on port ${process.env.PORT || 7000}`);
 
         await getApp();
 

@@ -37,7 +37,7 @@ async function getTmdbViaFindEndpoint(imdbId: string): Promise<ImdbTitles | null
       const resp = await axios.get(`https://api.themoviedb.org/3/find/${imdbId}`, {
         params: { api_key: apiKey, external_source: 'imdb_id', language: 'pt-BR' },
         timeout: 10000,
-        headers: { 'User-Agent': 'BrasilRD/1.0' },
+        headers: { 'User-Agent': 'pjbr/1.0' },
       });
       const results = resp.data;
       const movie = results?.movie_results?.[0];
@@ -126,7 +126,7 @@ async function getOmdbTitle(imdbId: string): Promise<{ title: string; year?: num
     const url = `http://www.omdbapi.com/?i=${imdbId}&apikey=${process.env.OMDB_API_KEY || 'trilogy'}`;
     const res = await retryAxios(() => axios.get(url, {
       timeout: 10000,
-      headers: { 'User-Agent': 'BrasilRD/1.0' },
+      headers: { 'User-Agent': 'pjbr/1.0' },
     }), 3, 1000);
     const data = res.data;
     if (!data || data.Response === 'False' || !data.Title) {

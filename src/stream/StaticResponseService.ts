@@ -70,70 +70,70 @@ export class StaticResponseService {
     const responses: Record<StaticResponse, StaticResponseInfo> = {
       [StaticResponse.DOWNLOADING]: {
         name: 'Baixando',
-        title: 'Brasil RD - Baixando',
+        title: 'pjbr - Baixando',
         description: 'Torrent sendo baixado pelo Torbox\nAguarde 1-10 minutos',
         url: videoUrl,
         videoUrl: videoUrl
       },
       [StaticResponse.FAILED_DOWNLOAD]: {
         name: 'Download falhou',
-        title: 'Brasil RD - Falhou',
+        title: 'pjbr - Falhou',
         description: 'Falha ao baixar torrent\nTente outro magnet link',
         url: videoUrl,
         videoUrl: videoUrl
       },
       [StaticResponse.FAILED_ACCESS]: {
         name: 'Chave API invalida',
-        title: 'Brasil RD - API invalida',
+        title: 'pjbr - API invalida',
         description: 'Chave do Torbox invalida\nObtenha nova chave em torbox.app',
         url: videoUrl,
         videoUrl: videoUrl
       },
       [StaticResponse.FAILED_RAR]: {
         name: 'Arquivo RAR',
-        title: 'Brasil RD - RAR/ZIP',
+        title: 'pjbr - RAR/ZIP',
         description: 'Contem arquivos compactados\nAguarde extracao ou tente outro',
         url: videoUrl,
         videoUrl: videoUrl
       },
       [StaticResponse.FAILED_TOO_BIG]: {
         name: 'Muito grande',
-        title: 'Brasil RD - Grande demais',
+        title: 'pjbr - Grande demais',
         description: 'Torrent excede limite do Torbox\nTente versao menor',
         url: videoUrl,
         videoUrl: videoUrl
       },
       [StaticResponse.FAILED_OPENING]: {
         name: 'Erro no magnet',
-        title: 'Brasil RD - Magnet invalido',
+        title: 'pjbr - Magnet invalido',
         description: 'Nao conseguiu processar magnet link\nVerifique o link',
         url: videoUrl,
         videoUrl: videoUrl
       },
       [StaticResponse.FAILED_UNEXPECTED]: {
         name: 'Erro inesperado',
-        title: 'Brasil RD - Erro',
+        title: 'pjbr - Erro',
         description: 'Ocorreu um erro inesperado\nTente novamente',
         url: videoUrl,
         videoUrl: videoUrl
       },
       [StaticResponse.FAILED_INFRINGEMENT]: {
         name: 'Bloqueado',
-        title: 'Brasil RD - Bloqueado',
+        title: 'pjbr - Bloqueado',
         description: 'Conteudo removido por direitos autorais\nTente outra fonte',
         url: videoUrl,
         videoUrl: videoUrl
       },
       [StaticResponse.LIMITS_EXCEEDED]: {
         name: 'Limites excedidos',
-        title: 'Brasil RD - Limites',
+        title: 'pjbr - Limites',
         description: 'Limites do Torbox excedidos\nAguarde ou faca upgrade',
         url: videoUrl,
         videoUrl: videoUrl
       },
       [StaticResponse.BLOCKED_ACCESS]: {
         name: 'Acesso bloqueado',
-        title: 'Brasil RD - Acesso bloqueado',
+        title: 'pjbr - Acesso bloqueado',
         description: 'Acesso ao Torbox bloqueado\nVerifique sua conta',
         url: videoUrl,
         videoUrl: videoUrl
@@ -148,7 +148,7 @@ export class StaticResponseService {
     const absoluteUrl = info.url.startsWith('http') ? info.url : this.baseUrl + info.url;
     return {
       title: info.title,
-      name: `Brasil RD - ${info.name}`,
+      name: `pjbr - ${info.name}`,
       description: `${info.description}${requestId ? `\nID: ${requestId}` : ''}`,
       url: absoluteUrl,
       behaviorHints: {
@@ -172,7 +172,7 @@ export class StaticResponseService {
 
     return {
       title: info.title,
-      name: `Brasil RD - ${info.name}`,
+      name: `pjbr - ${info.name}`,
       description: description,
       url: absoluteUrl,
       behaviorHints: {

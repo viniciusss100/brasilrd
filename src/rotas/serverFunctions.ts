@@ -31,7 +31,7 @@ export function getSSLOptions() {
 export function logServerStart(port: number, httpsEnabled: boolean) {
     const protocol = httpsEnabled ? 'https' : 'http';
 
-    logger.info('Brasil RD Addon iniciado', {
+    logger.info('pjbr Addon iniciado', {
         port,
         protocol,
         httpsEnabled

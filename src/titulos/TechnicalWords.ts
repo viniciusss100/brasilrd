@@ -113,7 +113,7 @@ export function isBrazilianReleaseGroup(word: string): boolean {
 
 /**
  * Normaliza texto (HTML entities, underscores, acentos) para comparação.
- * Portado do upstream BRASIL-RD-ADDON.
+ * Portado do upstream pjbr-ADDON.
  */
 export function normalizarTexto(texto: string): string {
   return texto
@@ -143,7 +143,7 @@ export function normalizarTexto(texto: string): string {
 
 /**
  * Extrai anos (4 dígitos) de um texto, ignorando resoluções (1080, 2160...).
- * Portado do upstream BRASIL-RD-ADDON. Usado na seleção de arquivo por título.
+ * Portado do upstream pjbr-ADDON. Usado na seleção de arquivo por título.
  */
 export function extrairAno(texto: string): number[] | undefined {
   if (!texto) return undefined;
@@ -720,7 +720,7 @@ const tmdbVerifiedWords = new Set<string>();
 import * as fs from 'fs';
 import * as path from 'path';
 const STRIP_FILE = process.env.VERCEL
-  ? path.join('/tmp', 'brasilrd-strip-words.txt')
+  ? path.join('/tmp', 'pjbr-strip-words.txt')
   : path.join(process.cwd(), 'data', 'strip-words.txt');
 
 // Carrega palavras persistidas no startup

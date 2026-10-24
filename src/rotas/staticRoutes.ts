@@ -188,7 +188,7 @@ export const setupStaticRoutes = (app: express.Application) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Brasil RD - ${responseInfo.name}</title>
+    <title>pjbr - ${responseInfo.name}</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -314,7 +314,7 @@ export const setupStaticRoutes = (app: express.Application) => {
         
         <div class="details">
             <p><strong>Status:</strong> ${responseName}</p>
-            <p><strong>Serviço:</strong> Brasil RD Addon</p>
+            <p><strong>Serviço:</strong> pjbr Addon</p>
             <p><strong>Arquivo de vídeo:</strong> ${videoFileName || 'Não disponível'}</p>
             <p><strong>Endpoints relacionados:</strong></p>
             <ul>
@@ -371,7 +371,7 @@ export const setupStaticRoutes = (app: express.Application) => {
             });
 
             return res.json({
-                service: 'Brasil RD Static Responses',
+                service: 'pjbr Static Responses',
                 description: 'Sistema de respostas estáticas com vídeos informativos',
                 video_path: videosPath,
                 base_url: baseUrl,
@@ -396,7 +396,7 @@ export const setupStaticRoutes = (app: express.Application) => {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Teste de Todos os Vídeos - Brasil RD Addon</title>
+    <title>Teste de Todos os Vídeos - pjbr Addon</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
         h1 { color: #333; }

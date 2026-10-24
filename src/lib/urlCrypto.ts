@@ -6,7 +6,7 @@ import crypto from 'crypto';
 const ALGO = 'aes-256-gcm';
 
 function getKey(): Buffer {
-  const secret = process.env.CONFIG_SECRET || process.env.ENCRYPTION_KEY || 'brasil-rd-troque-este-segredo-no-env';
+  const secret = process.env.CONFIG_SECRET || process.env.ENCRYPTION_KEY || 'pjbr-troque-este-segredo-no-env';
   return crypto.createHash('sha256').update(secret).digest();
 }
 

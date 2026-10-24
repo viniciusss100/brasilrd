@@ -20,18 +20,34 @@ import { QualityDetector } from '../lib/qualityDetector.js';
 const logger = new Logger('ExternalAddonService');
 const qualityDetector = QualityDetector.getInstance();
 
-function formatExternalStreamTitle(raw: StremioStream, addonName: string): { name: string; title: string } {
-  const rawTitle = raw.title || raw.description || raw.name || addonName;
+function formatExternalStreamTitle(raw: StremioStream, addonName: string): { name: string; title: string; filename: string; sizeBytes?: number } {
+  const hints = raw.behaviorHints || {};
+  const rawTitle = [raw.title, raw.description, raw.name, String(hints.filename || '')].filter(Boolean).join('\n') || addonName;
   const lines = rawTitle.split('\n').map(line => line.trim()).filter(Boolean);
   const main = lines[0] || addonName;
   const quality = qualityDetector.extractBestQuality(rawTitle) || 'HD';
   const technical = lines.slice(1).filter(line => !/[🔍⚙️]/.test(line));
-  const size = rawTitle.match(/💾\s*([\d.,]+\s*(?:TB|GB|MB|KB))/i)?.[1] || '';
-  const seeds = rawTitle.match(/👤\s*(\d+)/)?.[1] || '0';
+  const hintedBytes = typeof hints.videoSize === 'number' ? hints.videoSize
+    : typeof hints.size === 'number' ? hints.size
+    : typeof hints.torrentSize === 'number' ? hints.torrentSize
+    : undefined;
+  const hintedSize = hintedBytes ? formatBytes(hintedBytes) : '';
+  const size = rawTitle.match(/💾\s*([\d.,]+\s*(?:TB|GB|MB|KB|B))/i)?.[1] ||
+    rawTitle.match(/(?:size|tamanho)\s*[:=]?\s*([\d.,]+\s*(?:TB|GB|MB|KB|B))/i)?.[1] || '';
+  const seeds = rawTitle.match(/👤\s*(\d+)/)?.[1] || String(hints.seeders ?? hints.seeds ?? '0');
   const language = /dual|dublado|pt-?br|🇧🇷/i.test(rawTitle) ? '🌐 PT-BR 🇧🇷' : '';
   const indexer = `👤 0 🔍 ${addonName}`;
-  const details = [`💾 ${size || 'N/A'}`, `👤 ${seeds}`, `🔍 ${addonName}`, `💿 ${quality}`, language, ...technical].filter(Boolean).join(' ');
-  return { name: `PJBR\n${quality}`, title: `${main}\n${details}` };
+  const details = [`💾 ${size || hintedSize || 'N/A'}`, `👤 ${seeds}`, `🔍 ${addonName}`, `💿 ${quality}`, language, ...technical].filter(Boolean).join(' ');
+  const filename = String(hints.filename || lines[0] || addonName);
+  const sizeBytes = typeof hints.videoSize === 'number' ? hints.videoSize : undefined;
+  return { name: `PJBR\n${quality}`, title: `${main}\n${details}`, filename, sizeBytes };
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 ** 4) return `${(bytes / 1024 ** 4).toFixed(2)} TB`;
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(2)} MB`;
+  return `${(bytes / 1024).toFixed(2)} KB`;
 }
 
 interface AddonManifest {
@@ -159,6 +175,7 @@ async function stremioStreamToStream(
       ...(s.behaviorHints as any),
       filename: s.behaviorHints?.filename || s.title || s.name || addonName,
       streamQuality: qualityDetector.extractBestQuality(title) || 'HD',
+      ...(formatted.sizeBytes !== undefined ? { videoSize: formatted.sizeBytes } : {}),
     },
   };
 

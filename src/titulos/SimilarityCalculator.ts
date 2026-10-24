@@ -11,7 +11,7 @@ const omdbWordCache = new Map<string, boolean>();
 // Vercel lambda filesystem é read-only em /var/task; /tmp é gravável, porém
 // efêmero. Persistência definitiva continua sendo data/ localmente.
 const STRIP_WORDS_PATH = process.env.VERCEL
-  ? path.join('/tmp', 'brasilrd-strip-words.txt')
+  ? path.join('/tmp', 'pjbr-strip-words.txt')
   : path.resolve(process.cwd(), 'data', 'strip-words.txt');
 
 // Fila global de background: processa 1 palavra por vez, sem duplicatas

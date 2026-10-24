@@ -4,7 +4,7 @@ import { Logger } from '../utils/logger.js';
 const logger = new Logger('ETag');
 
 /**
- * Middleware de ETag inteligente (portado do upstream BRASIL-RD-ADDON):
+ * Middleware de ETag inteligente (portado do upstream pjbr-ADDON):
  * - Intercepta res.json()/res.send()/res.end() para capturar o body
  * - Calcula hash SHA256 → ETag forte
  * - Se If-None-Match bater, retorna 304 Not Modified (economia de banda)

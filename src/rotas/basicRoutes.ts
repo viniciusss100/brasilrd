@@ -14,7 +14,7 @@ export const setupBasicRoutes = (app: any, manifest: any) => {
         res.setHeader('Cache-Control', 'max-age=60, public');
         res.json({ 
             status: 'ok', 
-            service: 'Brasil RD Addon', 
+            service: 'pjbr Addon', 
             mode: 'torrentio-like-dev',
             version: manifest.version,
             features: {
@@ -179,7 +179,7 @@ export const setupBasicRoutes = (app: any, manifest: any) => {
     app.get('/api/info', (req: any, res: any) => {
         logger.debug('Info API solicitada', { ip: req.ip });
         res.json({
-            name: 'Brasil RD API',
+            name: 'pjbr API',
             version: '2.1.0',
             purpose: 'Autenticação Web para Stremio Web',
             endpoints: {

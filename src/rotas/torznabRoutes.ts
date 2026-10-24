@@ -4,8 +4,8 @@ import { analisarMagnet } from '../magnet/magnetHelper.js';
 const esc = (value: unknown) => String(value ?? '').replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]!));
 const xml = (body: string) => `<?xml version="1.0" encoding="UTF-8"?>${body}`;
 
-const INDEXER_ID = 'brasilrd';
-const INDEXER_TITLE = 'brasilrd';
+const INDEXER_ID = 'pjbr';
+const INDEXER_TITLE = 'pjbr';
 
 // Prowlarr-compatible caps XML
 const capsXml = xml(
@@ -73,7 +73,7 @@ export function setupTorznabRoutes(app: any): void {
       // Retorna item de teste para o Prowlarr validar a conexão com sucesso quando busca sem query
       const pubDate = new Date().toUTCString();
       const dummyItem = '<item>' +
-        `<title>BrasilRD Prowlarr Test 1080p</title>` +
+        `<title>pjbr Prowlarr Test 1080p</title>` +
         `<guid isPermaLink="false">0000000000000000000000000000000000000000</guid>` +
         `<link>magnet:?xt=urn:btih:0000000000000000000000000000000000000000</link>` +
         `<pubDate>${esc(pubDate)}</pubDate>` +
