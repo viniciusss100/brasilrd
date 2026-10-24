@@ -315,6 +315,8 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             border-color: rgba(124,58,237,0.45);
             color: #c4b5fd;
         }
+        .offer-badge { display:inline-flex; background:#22c55e; color:#052e16; border-radius:999px; padding:3px 9px; font-size:10px; font-weight:700; margin-left:4px; }
+        .offer-copy { text-align:center; color:#a7f3d0; font-size:12px; line-height:1.45; margin:-8px 0 16px; }
         .torbox-btn svg {
             width: 15px;
             height: 15px;
@@ -454,8 +456,9 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             <!-- Torbox referral -->
             <a class="torbox-btn" href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" rel="noopener">
                 <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                Assinar Torbox
+                Assinar Torbox <span class="offer-badge">OFERTA</span>
             </a>
+            <div class="offer-copy"><strong>Ganhe 7 dias extras a cada mês assinado</strong><br>12 meses = <strong>84 dias bônus</strong></div>
 
             <!-- API Key -->
             <div class="section-label">Chave de API</div>
@@ -483,6 +486,15 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
                 </label>
             </div>
             ` : `<input type="hidden" id="p2pMode" value="false">`}
+
+            <div class="toggle-row" onclick="toggleOption('excludeKeywords')">
+                <div class="toggle-label"><span class="toggle-title">Filtrar keywords ruins</span><span class="toggle-desc">CAM, telesync, sample, VF...</span></div>
+                <label class="switch" onclick="event.stopPropagation()"><input type="checkbox" id="excludeKeywords"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row" onclick="toggleOption('excludeQuality')">
+                <div class="toggle-label"><span class="toggle-title">Filtrar qualidade ruim</span><span class="toggle-desc">CAM, CAMRip, TC, HDTC</span></div>
+                <label class="switch" onclick="event.stopPropagation()"><input type="checkbox" id="excludeQuality"><span class="slider"></span></label>
+            </div>
 
             <hr class="divider">
 
@@ -530,9 +542,17 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             scheduleUpdate();
         }
 
+        function toggleOption(id) {
+            const el = document.getElementById(id);
+            el.checked = !el.checked;
+            scheduleUpdate();
+        }
+
         async function updateLink() {
             const apiKey = apiKeyInput.value.trim();
             const isP2p  = isP2pActive();
+            const excludeKeywords = document.getElementById('excludeKeywords').checked;
+            const excludeQuality = document.getElementById('excludeQuality').checked;
             const base   = window.location.protocol + '//' + window.location.host;
 
             if (!isP2p && !apiKey) {
@@ -545,7 +565,7 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
                 const resp = await fetch('/api/encrypt-config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ apiKey, p2p: isP2p })
+                    body: JSON.stringify({ apiKey, p2p: isP2p, excludeKeywords, excludeQuality })
                 });
                 const data = await resp.json();
                 if (!data.success) throw new Error(data.error || 'erro');

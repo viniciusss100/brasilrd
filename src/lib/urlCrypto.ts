@@ -13,6 +13,8 @@ function getKey(): Buffer {
 export interface ConfigPayload {
   apiKey: string;
   p2p?: boolean;
+  excludeKeywords?: boolean;
+  excludeQuality?: boolean;
 }
 
 /** Gera token opaco (base64url) contendo a config criptografada. */

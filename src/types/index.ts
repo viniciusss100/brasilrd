@@ -42,6 +42,8 @@ export interface StreamRequest {
     requireExactMatch?: boolean;
     maxConcurrentTorrents?: number;
     p2p?: boolean;
+    excludeKeywords?: boolean;
+    excludeQuality?: boolean;
   };
 }
 

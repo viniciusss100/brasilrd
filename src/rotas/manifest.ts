@@ -55,7 +55,19 @@ export const manifest = {
             type: 'checkbox',
             title: 'Modo P2P puro (magnet direto, sem debrid)',
             required: false
-        }] : [])
+        }] : []),
+        {
+            key: 'excludeKeywords',
+            type: 'checkbox',
+            title: 'Excluir keywords ruins (CAM, telesync, sample...)',
+            required: false
+        },
+        {
+            key: 'excludeQuality',
+            type: 'checkbox',
+            title: 'Excluir qualidades ruins (CAM, CAMRip, TC, HDTC)',
+            required: false
+        }
     ]
 };
 

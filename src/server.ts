@@ -58,7 +58,7 @@ app.use((req: any, res: any, next: any) => {
 
 // Gera o token encriptado usado na URL de manifest (chama isso o "configure" antes de instalar)
 app.post('/api/encrypt-config', (req: any, res: any) => {
-    const { apiKey, p2p } = req.body || {};
+    const { apiKey, p2p, excludeKeywords, excludeQuality } = req.body || {};
     const isP2p = !!p2p;
     
     // apiKey só é obrigatória se o modo P2P NÃO estiver ativado
@@ -66,7 +66,7 @@ app.post('/api/encrypt-config', (req: any, res: any) => {
         return res.status(400).json({ success: false, error: 'apiKey é obrigatória quando o modo P2P não está ativo' });
     }
     
-    const token = encryptConfig({ apiKey: apiKey || '', p2p: isP2p });
+    const token = encryptConfig({ apiKey: apiKey || '', p2p: isP2p, excludeKeywords: !!excludeKeywords, excludeQuality: !!excludeQuality });
     res.json({ success: true, token });
 });
 
@@ -257,7 +257,9 @@ app.get('/e/:token/stream/:type/:id.json', torrentioRateLimiter, async (req: any
                 language: 'pt-BR',
                 streamType: 'direct',
                 maxResults: '25',
-                p2p: isP2p
+                p2p: isP2p,
+                excludeKeywords: !!cfg.excludeKeywords,
+                excludeQuality: !!cfg.excludeQuality
             }
         };
 
@@ -323,7 +325,9 @@ app.get('/torbox=:apiKey/stream/:type/:id.json', torrentioRateLimiter, async (re
                 language: 'pt-BR',
                 streamType: 'direct',
                 maxResults: '25',
-                p2p: isP2p
+                p2p: isP2p,
+                excludeKeywords: false,
+                excludeQuality: false
             }
         };
 

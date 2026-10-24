@@ -101,6 +101,8 @@ export const createStremioBuilder = (manifest: any) => {
                 streamType: args.config?.streamType || 'direct',
                 maxResults: args.config?.maxResults || '25',
                 p2p: p2pMode
+                ,excludeKeywords: args.config?.excludeKeywords === true || args.config?.excludeKeywords === 'true'
+                ,excludeQuality: args.config?.excludeQuality === true || args.config?.excludeQuality === 'true'
             }
         };
 

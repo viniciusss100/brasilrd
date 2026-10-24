@@ -26,10 +26,11 @@ function formatExternalStreamTitle(raw: StremioStream, addonName: string): { nam
   const main = lines[0] || addonName;
   const quality = qualityDetector.extractBestQuality(rawTitle) || 'HD';
   const technical = lines.slice(1).filter(line => !/[🔍⚙️]/.test(line));
-  const size = rawTitle.match(/💾\s*[^\n]+/i)?.[0] || '';
+  const size = rawTitle.match(/💾\s*([\d.,]+\s*(?:TB|GB|MB|KB))/i)?.[1] || '';
+  const seeds = rawTitle.match(/👤\s*(\d+)/)?.[1] || '0';
   const language = /dual|dublado|pt-?br|🇧🇷/i.test(rawTitle) ? '🌐 PT-BR 🇧🇷' : '';
   const indexer = `👤 0 🔍 ${addonName}`;
-  const details = [size, indexer, `💿 ${quality}`, language, ...technical].filter(Boolean).join(' ');
+  const details = [`💾 ${size || 'N/A'}`, `👤 ${seeds}`, `🔍 ${addonName}`, `💿 ${quality}`, language, ...technical].filter(Boolean).join(' ');
   return { name: `PJBR\n${quality}`, title: `${main}\n${details}` };
 }
 
@@ -156,6 +157,8 @@ async function stremioStreamToStream(
     title,
     behaviorHints: {
       ...(s.behaviorHints as any),
+      filename: s.behaviorHints?.filename || s.title || s.name || addonName,
+      streamQuality: qualityDetector.extractBestQuality(title) || 'HD',
     },
   };
 

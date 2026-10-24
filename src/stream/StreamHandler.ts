@@ -23,6 +23,17 @@ const LEGENDADO_REGEX = new RegExp(
   'i'
 );
 
+const EXCLUDE_FILENAME_REGEX = /(?:^|[.\s_\-])(cam|hdcam|telesync|camrip|vf1|vf2|truefrench|vff|vfi|vfq|kpfr|sample)(?:$|[.\s_\-])/i;
+const EXCLUDE_QUALITY_REGEX = /\b(?:CAMRip|CAM|HDTC|TC)\b/i;
+
+function streamIsExcluded(stream: Stream, request: StreamRequest): boolean {
+  const filename = String(stream.behaviorHints?.filename || '');
+  const text = `${stream.title || ''} ${filename}`;
+  if (request.config?.excludeKeywords && EXCLUDE_FILENAME_REGEX.test(text)) return true;
+  if (request.config?.excludeQuality && EXCLUDE_QUALITY_REGEX.test(text)) return true;
+  return false;
+}
+
 interface DatabaseStreamResult {
   success: boolean;
   streams: Stream[];
@@ -147,12 +158,15 @@ export class StreamHandler {
         this.getBetorStreams(request),
       ]);
 
+      const allowedExternal = externalStreams.filter(s => !streamIsExcluded(s, request));
+      const allowedBetor = betorStreams.filter(s => !streamIsExcluded(s, request));
+
       if (dbResult.success && dbResult.streams.length > 0) {
         this.stats.servedFromDatabase++;
         const merged = this.deduplicateStreamsByInfoHash([
           ...dbResult.streams,
-          ...externalStreams,
-          ...betorStreams,
+          ...allowedExternal,
+          ...allowedBetor,
         ]);
         return { streams: merged };
       }
@@ -164,15 +178,15 @@ export class StreamHandler {
         this.stats.servedFromCatalog++;
         const merged = this.deduplicateStreamsByInfoHash([
           ...catalogResult.streams,
-          ...externalStreams,
-          ...betorStreams,
+          ...allowedExternal,
+          ...allowedBetor,
         ]);
         return { streams: merged };
       }
 
       // Só externos (sem DB nem catálogo)
-      if (externalStreams.length > 0 || betorStreams.length > 0) {
-        return { streams: this.deduplicateStreamsByInfoHash([...externalStreams, ...betorStreams]) };
+      if (allowedExternal.length > 0 || allowedBetor.length > 0) {
+        return { streams: this.deduplicateStreamsByInfoHash([...allowedExternal, ...allowedBetor]) };
       }
 
       // Sem streams no DB nem no catálogo → retorna vazio (sem resultado fake de "Baixando")
