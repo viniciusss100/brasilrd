@@ -14,6 +14,7 @@ import { INDICADORES_INTERNACIONAL_TORRENTS } from '../titulos/TechnicalWords.js
 import { isExcludedRelease } from '../lib/releaseFilter.js';
 import { fetchExternalAddonStreams } from '../catalogo/ExternalAddonService.js';
 import { searchBetor } from '../services/scraper/betorScraper.js';
+import { TitleFilter } from '../titulos/titleFilter.js';
 
 // Legendado indicators da fonte unica (TechnicalWords)
 const LEGENDADO_REGEX = new RegExp(
@@ -50,6 +51,7 @@ export class StreamHandler {
   private staticResponseService: StaticResponseService;
   private readonly qualityDetector: QualityDetector;
   private readonly streamFormatter: StreamFormatter;
+  private readonly titleFilter: TitleFilter;
   private readonly catalogProvider: CatalogProvider;
 
   // Seeds reais do Torbox (v1.6.2) — cache com TTL p/ não custar por request
@@ -76,6 +78,7 @@ export class StreamHandler {
     this.staticResponseService = new StaticResponseService(baseUrl);
     this.qualityDetector = QualityDetector.getInstance();
     this.streamFormatter = StreamFormatter.getInstance();
+    this.titleFilter = TitleFilter.getInstance();
     this.catalogProvider = new CatalogProvider(this.magnetService);
   }
 
@@ -327,6 +330,23 @@ export class StreamHandler {
       });
       const streams: Stream[] = [];
       for (const torrent of results) {
+        // Betor pode devolver itens fora do alvo; valida contra TMDB/IMDb
+        // antes de formatar e retornar stream.
+        if (baseId) {
+          const valid = await this.titleFilter.titulosCombinam(
+            torrent.title,
+            baseId,
+            torrent.season ?? request.season ?? (match ? Number(match[1]) : undefined),
+            torrent.episode ?? request.episode ?? (match ? Number(match[2]) : undefined),
+          );
+          if (!valid.matches) {
+            this.logger.debug('Stream Betor descartado por baixa similaridade', {
+              title: torrent.title.substring(0, 80),
+              reason: valid.reason,
+            });
+            continue;
+          }
+        }
         const formatted = await this.streamFormatter.createMultipleQualityStreams(
           torrent, request, null, request.type,
           torrent.season, torrent.episode, false, undefined, false
