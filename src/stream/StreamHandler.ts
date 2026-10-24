@@ -281,7 +281,7 @@ export class StreamHandler {
     if (!process.env.EXTERNAL_ADDON_MANIFESTS?.trim()) return [];
     try {
       const id = request.imdbId || request.id;
-      const streams = await fetchExternalAddonStreams(request.type, id);
+      const streams = await fetchExternalAddonStreams(request.type, id, request.apiKey);
       if (streams.length > 0) {
         this.logger.debug('StreamHandler: externos recebidos', { count: streams.length, id });
       }

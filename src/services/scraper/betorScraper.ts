@@ -52,7 +52,7 @@ function base32ToHex(b32: string): string {
 }
 
 function resolveInfoHash(item: BetorItem): string {
-  // Try magnet_uri first
+  // Try magnet_uri first — extrai hash do xt=urn:btih:
   if (item.magnet_uri) {
     const m = item.magnet_uri.match(/urn:btih:([a-fA-F0-9]{40}|[A-Za-z2-7]{32})/i);
     if (m) {
@@ -61,8 +61,10 @@ function resolveInfoHash(item: BetorItem): string {
     }
   }
   if (!item.magnet_xt) return '';
-  if (/^[a-fA-F0-9]{40}$/.test(item.magnet_xt)) return item.magnet_xt.toLowerCase();
-  if (/^[A-Za-z2-7]{32}$/.test(item.magnet_xt)) return base32ToHex(item.magnet_xt).toLowerCase();
+  // magnet_xt pode vir como "urn:btih:HASH" ou só "HASH"
+  const xt = item.magnet_xt.replace(/^urn:btih:/i, '');
+  if (/^[a-fA-F0-9]{40}$/.test(xt)) return xt.toLowerCase();
+  if (/^[A-Za-z2-7]{32}$/.test(xt)) return base32ToHex(xt).toLowerCase();
   return '';
 }
 
@@ -114,8 +116,8 @@ export async function searchBetor(
   const params: Record<string, string | number | boolean> = {};
 
   if (imdbId) {
-    // Prefer IMDB-based lookup (most reliable)
-    params.imdb_id = imdbId.replace(/^tt/, '');
+    // Betor exige o prefixo "tt" no imdb_id
+    params.imdb_id = imdbId.startsWith('tt') ? imdbId : `tt${imdbId}`;
     if (options.season !== undefined) params.season = options.season;
     if (options.episode !== undefined) params.episode = options.episode;
   } else {
@@ -130,10 +132,10 @@ export async function searchBetor(
       params,
     });
 
-    const raw: BetorItem[] = Array.isArray(response.data)
+    const raw: BetorItem[] = Array.isArray(response.data?.items)
+      ? response.data.items
+      : Array.isArray(response.data)
       ? response.data
-      : Array.isArray(response.data?.results)
-      ? response.data.results
       : [];
 
     const resultados: TorrentResult[] = [];

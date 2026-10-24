@@ -14,6 +14,7 @@
 import axios from 'axios';
 import { Logger } from '../utils/logger.js';
 import { Stream } from '../types/index.js';
+import { gerarUrlResolve } from '../magnet/magnetHelper.js';
 
 const logger = new Logger('ExternalAddonService');
 
@@ -120,7 +121,13 @@ async function getAddons(): Promise<AddonInfo[]> {
   return cachedAddons;
 }
 
-function stremioStreamToStream(s: StremioStream, addonName: string): Stream | null {
+async function stremioStreamToStream(
+  s: StremioStream,
+  addonName: string,
+  apiKey?: string,
+  requestType?: string,
+  requestId?: string,
+): Promise<Stream | null> {
   // Must have either url or infoHash
   if (!s.url && !s.infoHash) return null;
 
@@ -136,10 +143,37 @@ function stremioStreamToStream(s: StremioStream, addonName: string): Stream | nu
     },
   };
 
-  if (s.url) stream.url = s.url;
-  if (s.infoHash) {
+  // Se tem infoHash e apiKey configurada → gera URL de resolve (passa pelo debrid)
+  if (s.infoHash && apiKey) {
+    try {
+      const magnet = `magnet:?xt=urn:btih:${s.infoHash}`;
+      const filename = (s.title || s.name || addonName).replace(/[^a-zA-Z0-9.\-_ ]/g, '_').trim() + '.mkv';
+      const resolveUrl = await gerarUrlResolve(
+        magnet,
+        apiKey,
+        filename,
+        s.fileIdx ?? 0,
+        (requestType as 'movie' | 'series') || 'movie',
+        undefined,
+        undefined,
+        undefined,
+        s.infoHash, // infoHash pré-parsado — evita re-parse
+      );
+      stream.url = resolveUrl;
+      stream.infoHash = s.infoHash;
+      if (s.fileIdx !== undefined) stream.fileIdx = s.fileIdx;
+    } catch {
+      // Fallback: usa infoHash direto (P2P)
+      stream.infoHash = s.infoHash;
+      if (s.fileIdx !== undefined) stream.fileIdx = s.fileIdx;
+    }
+  } else if (s.infoHash) {
+    // Sem apiKey: P2P direto
     stream.infoHash = s.infoHash;
     if (s.fileIdx !== undefined) stream.fileIdx = s.fileIdx;
+  } else if (s.url) {
+    // URL já resolvida pelo addon externo — passa direto
+    stream.url = s.url;
   }
 
   return stream;
@@ -147,7 +181,8 @@ function stremioStreamToStream(s: StremioStream, addonName: string): Stream | nu
 
 export async function fetchExternalAddonStreams(
   type: string,
-  id: string
+  id: string,
+  apiKey?: string,
 ): Promise<Stream[]> {
   if (!process.env.EXTERNAL_ADDON_MANIFESTS?.trim()) return [];
 
@@ -170,7 +205,7 @@ export async function fetchExternalAddonStreams(
         const streams: StremioStream[] = Array.isArray(res.data?.streams) ? res.data.streams : [];
         let aceitos = 0;
         for (const s of streams) {
-          const stream = stremioStreamToStream(s, addon.manifest.name);
+          const stream = await stremioStreamToStream(s, addon.manifest.name, apiKey, type, id);
           if (stream) {
             results.push(stream);
             aceitos++;

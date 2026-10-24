@@ -186,7 +186,7 @@ export class CatalogProvider {
     if (!process.env.EXTERNAL_ADDON_MANIFESTS?.trim()) return [];
     try {
       const externalId = request.imdbId || request.id;
-      const streams = await fetchExternalAddonStreams(request.type, externalId);
+      const streams = await fetchExternalAddonStreams(request.type, externalId, request.apiKey);
       if (streams.length > 0) {
         this.logger.debug('Streams de addons externos recebidos', { count: streams.length, id: externalId });
       }
