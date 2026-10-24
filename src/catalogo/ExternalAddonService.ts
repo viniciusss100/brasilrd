@@ -27,7 +27,12 @@ function formatExternalStreamTitle(raw: StremioStream, addonName: string): { nam
   const lines = rawTitle.split('\n').map(line => line.trim()).filter(Boolean);
   const main = lines[0] || addonName;
   const quality = qualityDetector.extractBestQuality(rawTitle) || 'SD';
-  const technical = lines.slice(1).filter(line => !/[🔍⚙️]/.test(line));
+  const filename = String(hints.filename || lines[0] || displayAddon);
+  const technical = lines.slice(1).filter(line =>
+    !/[🔍⚙️]/.test(line) &&
+    line !== filename &&
+    !line.includes(filename)
+  );
   const hintedBytes = typeof hints.videoSize === 'number' ? hints.videoSize
     : typeof hints.size === 'number' ? hints.size
     : typeof hints.torrentSize === 'number' ? hints.torrentSize
@@ -39,7 +44,6 @@ function formatExternalStreamTitle(raw: StremioStream, addonName: string): { nam
   const language = /dual|dublado|pt-?br|🇧🇷/i.test(rawTitle) ? '🌐 PT-BR 🇧🇷' : '';
   const indexer = `🔍 ${displayAddon}`;
   const details = [`💾 ${size || hintedSize || 'N/A'}`, `👤 ${seeds}`, indexer, `💿 ${quality}`, language, ...technical].filter(Boolean).join(' ');
-  const filename = String(hints.filename || lines[0] || displayAddon);
   const sizeBytes = typeof hints.videoSize === 'number' ? hints.videoSize : undefined;
   return { name: `${quality}`, title: `${main}\n📄 ${filename}\n${details}`, filename, sizeBytes };
 }
