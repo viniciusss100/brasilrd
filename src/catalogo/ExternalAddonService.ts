@@ -25,14 +25,23 @@ function formatExternalStreamTitle(raw: StremioStream, addonName: string): { nam
   const hints = raw.behaviorHints || {};
   const rawTitle = [raw.title, raw.description, raw.name, String(hints.filename || '')].filter(Boolean).join('\n') || addonName;
   const lines = rawTitle.split('\n').map(line => line.trim()).filter(Boolean);
-  const main = lines[0] || addonName;
+  const main = (lines[0] || displayAddon)
+    .replace(/\[P2P\]\s*/gi, '')
+    .replace(/\bStremThru\s+Torz\b/gi, 'Torz')
+    .trim() || displayAddon;
   const quality = qualityDetector.extractBestQuality(rawTitle) || 'SD';
   const filename = String(hints.filename || lines[0] || displayAddon);
   const technical = lines.slice(1).filter(line =>
     !/[🔍⚙️]/.test(line) &&
+    !/\[P2P\]|\bP2P\b|\bStremThru\s+Torz\b|^Torz$/i.test(line) &&
     line !== filename &&
     !line.includes(filename)
-  );
+  ).map(line => line
+    .replace(/\[P2P\]\s*/gi, '')
+    .replace(/\bStremThru\s+Torz\b/gi, '')
+    .replace(/\bTorz\b/gi, '')
+    .trim()
+  ).filter(Boolean);
   const hintedBytes = typeof hints.videoSize === 'number' ? hints.videoSize
     : typeof hints.size === 'number' ? hints.size
     : typeof hints.torrentSize === 'number' ? hints.torrentSize
@@ -182,6 +191,7 @@ async function stremioStreamToStream(
   const name = formatted.name;
 
   const stream: Stream = {
+    // Campo exibido pelo Stremio. Não usar s.name/raw name do addon externo.
     name: `${apiKey ? '[TB] ' : ''}PJBR ${qualityLabel(formatted.name)}`,
     title,
     behaviorHints: {

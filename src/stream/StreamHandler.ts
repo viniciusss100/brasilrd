@@ -376,7 +376,10 @@ export class StreamHandler {
         const hash = this.extractStreamHash(stream);
         if (hash && cached.has(hash)) {
           const lines = (stream.name || 'PJBR').split('\n');
-          if (!lines[0].includes('⚡️')) lines[0] = `⚡️ [TB]`;
+          if (!lines[0].includes('⚡️')) {
+            const label = lines[0].replace(/^⚡️\s*/, '').replace(/^\[TB\]\s*/, '').trim();
+            lines[0] = `⚡️ [TB] ${label || 'PJBR HD'}`;
+          }
           stream.name = lines.join('\n');
         }
       }
