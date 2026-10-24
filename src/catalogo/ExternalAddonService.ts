@@ -26,7 +26,7 @@ function formatExternalStreamTitle(raw: StremioStream, addonName: string): { nam
   const rawTitle = [raw.title, raw.description, raw.name, String(hints.filename || '')].filter(Boolean).join('\n') || addonName;
   const lines = rawTitle.split('\n').map(line => line.trim()).filter(Boolean);
   const main = lines[0] || addonName;
-  const quality = qualityDetector.extractBestQuality(rawTitle) || 'HD';
+  const quality = qualityDetector.extractBestQuality(rawTitle) || 'SD';
   const technical = lines.slice(1).filter(line => !/[🔍⚙️]/.test(line));
   const hintedBytes = typeof hints.videoSize === 'number' ? hints.videoSize
     : typeof hints.size === 'number' ? hints.size
@@ -41,7 +41,15 @@ function formatExternalStreamTitle(raw: StremioStream, addonName: string): { nam
   const details = [`💾 ${size || hintedSize || 'N/A'}`, `👤 ${seeds}`, indexer, `💿 ${quality}`, language, ...technical].filter(Boolean).join(' ');
   const filename = String(hints.filename || lines[0] || displayAddon);
   const sizeBytes = typeof hints.videoSize === 'number' ? hints.videoSize : undefined;
-  return { name: `PJBR\n${quality}`, title: `${main}\n📄 ${filename}\n${details}`, filename, sizeBytes };
+  return { name: `${quality}`, title: `${main}\n📄 ${filename}\n${details}`, filename, sizeBytes };
+}
+
+function qualityLabel(quality: string): string {
+  const q = quality.toLowerCase();
+  if (/2160p|4k|uhd/.test(q)) return '4K';
+  if (/1080p|fhd/.test(q)) return 'FHD';
+  if (/720p|hd/.test(q)) return 'HD';
+  return 'SD';
 }
 
 function formatBytes(bytes: number): string {
@@ -170,7 +178,7 @@ async function stremioStreamToStream(
   const name = formatted.name;
 
   const stream: Stream = {
-    name,
+    name: `${apiKey ? '[TB] ' : ''}${displayAddonName(addonName)} ${qualityLabel(formatted.name)}`,
     title,
     behaviorHints: {
       ...(s.behaviorHints as any),
@@ -214,6 +222,10 @@ async function stremioStreamToStream(
   }
 
   return stream;
+}
+
+function displayAddonName(addonName: string): string {
+  return /stremthru.*torz/i.test(addonName) ? 'Torz' : addonName;
 }
 
 export async function fetchExternalAddonStreams(

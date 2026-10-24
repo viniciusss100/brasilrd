@@ -101,13 +101,17 @@ export class StreamFormatter {
     if (debridAtivo) {
       badges.push(emCache ? '⚡️ [TB]' : '[TB]');
     }
-    const partes: string[] = [];
-    if (badges.length > 0) {
-      partes.push(badges.join(' '));
-    }
-    partes.push((process.env.ADDON_NAME || 'pjbr').trim());
-    partes.push(qualidade);
-    return partes.join('\n');
+    const addon = (process.env.ADDON_NAME || 'pjbr').trim();
+    const normalizedQuality = this.normalizarNomeQualidade(qualidade);
+    return [...badges, addon, normalizedQuality].join(' ');
+  }
+
+  private normalizarNomeQualidade(qualidade: string): string {
+    const q = (qualidade || '').toLowerCase();
+    if (/2160p|4k|uhd/.test(q)) return '4K';
+    if (/1080p|fhd/.test(q)) return 'FHD';
+    if (/720p|hd/.test(q)) return 'HD';
+    return 'SD';
   }
 
   // Extrai perfil tecnico (codec/HDR/audio) do titulo + metadata, estilo StremThru
