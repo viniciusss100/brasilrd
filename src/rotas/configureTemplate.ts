@@ -488,7 +488,7 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             ` : `<input type="hidden" id="p2pMode" value="false">`}
 
             <div class="toggle-row" onclick="toggleOption('excludeKeywords')">
-                <div class="toggle-label"><span class="toggle-title">Filtrar keywords ruins</span><span class="toggle-desc">CAM, telesync, sample, VF...</span></div>
+                <div class="toggle-label"><span class="toggle-title">Filtrar keywords ruins</span><span class="toggle-desc">CAM, LAT, Cinecalidad, sample, VF...</span></div>
                 <label class="switch" onclick="event.stopPropagation()"><input type="checkbox" id="excludeKeywords"><span class="slider"></span></label>
             </div>
             <div class="toggle-row" onclick="toggleOption('excludeQuality')">

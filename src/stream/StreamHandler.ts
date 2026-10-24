@@ -23,7 +23,7 @@ const LEGENDADO_REGEX = new RegExp(
   'i'
 );
 
-const EXCLUDE_FILENAME_REGEX = /(?:^|[.\s_\-])(cam|hdcam|telesync|camrip|vf1|vf2|truefrench|vff|vfi|vfq|kpfr|sample)(?:$|[.\s_\-])/i;
+const EXCLUDE_FILENAME_REGEX = /(?:^|[.\s_\-])(cam|hdcam|telesync|camrip|vf1|vf2|truefrench|vff|vfi|vfq|kpfr|sample|cinecaledad|dual-lat|lat)(?:$|[.\s_\-])/i;
 const EXCLUDE_QUALITY_REGEX = /\b(?:CAMRip|CAM|HDTC|TC)\b/i;
 
 function streamIsExcluded(stream: Stream, request: StreamRequest): boolean {
