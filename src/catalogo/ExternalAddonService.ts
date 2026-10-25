@@ -99,7 +99,10 @@ interface StremioStream {
 
 let cachedAddons: AddonInfo[] | null = null;
 let cacheTimestamp = 0;
-const MANIFEST_TTL = 30 * 60 * 1000; // 30 min
+const MANIFEST_TTL = 12 * 60 * 60 * 1000; // 12 horas
+const RESPONSE_TTL = 10 * 60 * 1000; // 10 min
+const MAX_STREAMS_PER_ADDON = 20;
+const responseCache = new Map<string, { expires: number; streams: Stream[] }>();
 
 function getManifestUrls(): string[] {
   const raw = process.env.EXTERNAL_ADDON_MANIFESTS || '';
@@ -255,6 +258,15 @@ export async function fetchExternalAddonStreams(
   const eligible = addons.filter(a => addonSupportsStream(a, type, id));
   if (eligible.length === 0) return [];
 
+  // URLs de debrid são específicas da API Key; cachear essas URLs poderia
+  // misturar usuários. Cache somente respostas P2P.
+  const cacheKey = `${type}:${id}:p2p`;
+  if (!apiKey) {
+    const cached = responseCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) return cached.streams;
+    if (cached) responseCache.delete(cacheKey);
+  }
+
   const results: Stream[] = [];
 
   await Promise.allSettled(
@@ -262,10 +274,12 @@ export async function fetchExternalAddonStreams(
       const url = `${addon.baseUrl}/stream/${type}/${encodeURIComponent(id)}.json`;
       try {
         const res = await axios.get(url, {
-          timeout: 12000,
+          timeout: 8000,
           headers: { 'User-Agent': 'Stremio/4.4' },
         });
-        const streams: StremioStream[] = Array.isArray(res.data?.streams) ? res.data.streams : [];
+        const streams: StremioStream[] = Array.isArray(res.data?.streams)
+          ? res.data.streams.slice(0, MAX_STREAMS_PER_ADDON)
+          : [];
         let aceitos = 0;
         for (const s of streams) {
           const stream = await stremioStreamToStream(s, addon.manifest.name, apiKey, type, id);
@@ -295,7 +309,9 @@ export async function fetchExternalAddonStreams(
     })
   );
 
-  return results;
+  const limited = results.slice(0, MAX_STREAMS_PER_ADDON * eligible.length);
+  if (!apiKey) responseCache.set(cacheKey, { expires: Date.now() + RESPONSE_TTL, streams: limited });
+  return limited;
 }
 
 /** Invalida cache de manifests (útil em testes ou hot-reload) */

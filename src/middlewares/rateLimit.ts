@@ -47,3 +47,15 @@ export const torrentioRateLimiter = (() => {
     limiterInstance(req, res, next);
   };
 })(); // IIFE: Executa imediatamente para criar a instância
+
+// Endpoint pode ser abusado para validar chaves e gerar tokens.
+export const configureRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: {
+    error: 'Muitas tentativas de configuração. Aguarde 15 minutos.',
+    retryAfter: '15 minutos',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

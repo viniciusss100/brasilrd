@@ -18,7 +18,7 @@ import { createServer } from './rotas/serverFunctions.js';
 import { CacheService } from './debrid/CacheService.js';
 import { Logger } from './utils/logger.js';
 import { clientInfoMiddleware } from './middlewares/clientInfo.js';
-import { createRateLimiter, torrentioRateLimiter } from './middlewares/rateLimit.js';
+import { createRateLimiter, torrentioRateLimiter, configureRateLimiter } from './middlewares/rateLimit.js';
 import { metricsService } from './catalogo/MetricsService.js';
 import { ultraDebugMiddleware, manifestDebugMiddleware, configureDebugMiddleware } from './middlewares/ultraDebug.js';
 import { etagMiddleware } from './middlewares/etag.js';
@@ -57,7 +57,7 @@ app.use((req: any, res: any, next: any) => {
 });
 
 // Gera o token encriptado usado na URL de manifest (chama isso o "configure" antes de instalar)
-app.post('/api/encrypt-config', async (req: any, res: any) => {
+app.post('/api/encrypt-config', configureRateLimiter, async (req: any, res: any) => {
     const { apiKey, p2p, excludeKeywords, excludeQuality } = req.body || {};
     const isP2p = !!p2p;
     

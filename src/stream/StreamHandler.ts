@@ -164,8 +164,9 @@ export class StreamHandler {
         this.getBetorStreams(request),
       ]);
 
-      const allowedExternal = externalStreams.filter(s => !streamIsExcluded(s, request));
-      const allowedBetor = betorStreams.filter(s => !streamIsExcluded(s, request));
+       const maxResults = Math.min(50, Math.max(1, Number(request.config?.maxResults || 25)));
+       const allowedExternal = externalStreams.filter(s => !streamIsExcluded(s, request)).slice(0, maxResults);
+       const allowedBetor = betorStreams.filter(s => !streamIsExcluded(s, request)).slice(0, maxResults);
       await this.applyDebridCacheBadges([...allowedExternal, ...allowedBetor], request.apiKey);
 
       if (dbResult.success && dbResult.streams.length > 0) {
