@@ -52,7 +52,11 @@ function formatExternalStreamTitle(raw: StremioStream, addonName: string): { nam
   const seeds = rawTitle.match(/👤\s*(\d+)/)?.[1] || String(hints.seeders ?? hints.seeds ?? '0');
   const language = /dual|dublado|pt-?br|🇧🇷/i.test(rawTitle) ? '🌐 PT-BR 🇧🇷' : '';
   const indexer = `🔍 ${displayAddon}`;
-  const details = [`💾 ${size || hintedSize || 'N/A'}`, `👤 ${seeds}`, indexer, `💿 ${quality}`, language, ...technical].filter(Boolean).join(' ');
+  const details = [
+    [`💾${size || hintedSize || 'N/A'}`, `👤${seeds}`, indexer].join(' '),
+    [`💿${quality}`, language].filter(Boolean).join(' '),
+    ...technical,
+  ].filter(Boolean).join('\n');
   const sizeBytes = typeof hints.videoSize === 'number' ? hints.videoSize : undefined;
   return { name: `${quality}`, title: `${main}\n📄 ${filename}\n${details}`, filename, sizeBytes };
 }
@@ -191,7 +195,6 @@ async function stremioStreamToStream(
   // Stremio exige title não-vazio para exibir o stream
   const formatted = formatExternalStreamTitle(s, addonName);
   const title = formatted.title;
-  const name = formatted.name;
 
   const stream: Stream = {
     // Campo exibido pelo Stremio. Não usar s.name/raw name do addon externo.
