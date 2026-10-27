@@ -98,14 +98,17 @@ export class SimilarityCalculator {
 
     if (this.tmdbScraper) {
       try {
+        // Ano usado no matching deve ser ano de estreia da série. Buscar dados
+        // da temporada fazia temporadas novas substituírem esse ano e rejeitava
+        // releases antigos da mesma série.
         const season = torrentMetadata?.season;
-        const cacheKey = season ? `tmdb-${imdbId}:s${season}` : `tmdb-${imdbId}`;
+        const cacheKey = `tmdb-${imdbId}`;
         const cached = this.tmdbCache.get(cacheKey);
         let tmdbData;
         if (cached && (Date.now() - cached.timestamp) < this.cacheTTL) {
           tmdbData = cached.data;
         } else {
-          tmdbData = await this.tmdbScraper.getTitlesFromImdbId(imdbId, season);
+          tmdbData = await this.tmdbScraper.getTitlesFromImdbId(imdbId);
           this.tmdbCache.set(cacheKey, { data: tmdbData, timestamp: Date.now() });
         }
         movieInfo = {
