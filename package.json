@@ -48,7 +48,7 @@
     "@types/express": "^5.0.5",
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^29.5.14",
-    "@types/node": "^20.0.0",
+    "@types/node": "^26.12.1",
     "@types/pg": "^8.23.1",
     "@types/request-ip": "^0.0.41",
     "@types/stremio-addon-sdk": "^1.6.12",
