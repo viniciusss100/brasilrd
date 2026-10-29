@@ -42,22 +42,27 @@ function formatExternalStreamTitle(raw: StremioStream, addonName: string): { nam
     .replace(/\bTorz\b/gi, '')
     .trim()
   ).filter(Boolean);
-  const hintedBytes = typeof hints.videoSize === 'number' ? hints.videoSize
+  const episodeBytes = typeof hints.videoSize === 'number' ? hints.videoSize
     : typeof hints.size === 'number' ? hints.size
     : typeof hints.torrentSize === 'number' ? hints.torrentSize
     : undefined;
-  const hintedSize = hintedBytes ? formatBytes(hintedBytes) : '';
+  const packBytes = typeof hints.folderSize === 'number' ? hints.folderSize
+    : typeof hints.packSize === 'number' ? hints.packSize
+    : undefined;
+  const hintedSize = episodeBytes ? formatBytes(episodeBytes) : '';
+  const packSize = packBytes ? formatBytes(packBytes) : '';
   const size = rawTitle.match(/💾\s*([\d.,]+\s*(?:TB|GB|MB|KB|B))/i)?.[1] ||
     rawTitle.match(/(?:size|tamanho)\s*[:=]?\s*([\d.,]+\s*(?:TB|GB|MB|KB|B))/i)?.[1] || '';
+  const packSizeFromText = rawTitle.match(/(?:folder\s*size|pack\s*size|tamanho\s*(?:do\s*)?pack)\s*[:=]?\s*([\d.,]+\s*(?:TB|GB|MB|KB|B))/i)?.[1] || '';
   const seeds = rawTitle.match(/👤\s*(\d+)/)?.[1] || String(hints.seeders ?? hints.seeds ?? '0');
   const language = detectAudioLanguages(rawTitle);
   const indexer = `🔍 ${displayAddon}`;
   const details = [
-    [`💾${size || hintedSize || 'N/A'}`, `👤${seeds}`, indexer].join(' '),
+    [`💾${size || hintedSize || 'N/A'}${packSize || packSizeFromText ? ` / 💾${packSize || packSizeFromText}` : ''}`, `👤${seeds}`, indexer].join(' '),
     [`💿${quality}`, language].filter(Boolean).join(' '),
     ...technical,
   ].filter(Boolean).join('\n');
-  const sizeBytes = typeof hints.videoSize === 'number' ? hints.videoSize : undefined;
+  const sizeBytes = episodeBytes;
   return { name: `${quality}`, title: `${main}\n📄 ${filename}\n${details}`, filename, sizeBytes };
 }
 
