@@ -141,7 +141,14 @@ export class SimilarityCalculator {
       return { matches: false, similarity: 0, reason: 'Sem dados do TMDB' };
     }
 
-    const torqueYear = torrentMetadata?.year || this.extrairAnoDoTitulo(torrentTitle);
+    // Ano em séries costuma ser ano do release/temporada, não estreia da
+    // obra. Ex.: série iniciada em 2018 com S05 lançada em 2024. Remover anos
+    // apenas da comparação textual; validação de temporada continua ativa.
+    const isSeries = movieInfo.mediaType === 'tv';
+    const titleForComparison = isSeries
+      ? torrentTitle.replace(/\b(?:19|20)\d{2}\b/g, ' ')
+      : torrentTitle;
+    const torqueYear = isSeries ? null : torrentMetadata?.year || this.extrairAnoDoTitulo(torrentTitle);
 
     // ═══ EARLY REJECT: Idioma internacional explícito (ANTES do matching pesado) ═══
     // Delega 100% ao LanguageDetector — ele já classifica via INDICADORES_INTERNACIONAL_TORRENTS
@@ -153,7 +160,7 @@ export class SimilarityCalculator {
 
     // Compara palavras do torrent contra cada titulo TMDB e decide com regras unificadas
     const resultado = await this.compararTitulos(
-      torrentTitle,
+      titleForComparison,
       movieInfo,
       torqueYear,
       torrentMetadata?.season
