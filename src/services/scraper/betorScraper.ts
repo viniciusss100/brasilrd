@@ -17,6 +17,9 @@ interface BetorItem {
   imdb_id?: string;
   tmdb_id?: number;
   torrent_size?: number;  // bytes
+  file_size?: number;     // bytes do arquivo/episódio, quando informado
+  episode_size?: number;
+  folder_size?: number;   // bytes do pack, quando informado separadamente
   torrent_num_seeds?: number;
   episodes?: number[];
   seasons?: number[];
@@ -79,9 +82,9 @@ function mapLanguage(langs?: string[]): string {
   const ls = langs.map(l => l.toLowerCase());
   const pt = ls.some(l => l.includes('por') || l.includes('pt') || l.includes('brazil'));
   const en = ls.some(l => l.includes('eng') || l.includes('en'));
-  if (pt && en) return 'Dual Áudio';
-  if (pt) return 'Dublado';
-  if (en) return 'Legendado';
+  if (pt && en) return 'Portuguese (Brasil) / English';
+  if (pt) return 'Portuguese (Brasil)';
+  if (en) return 'English';
   return langs.join(' | ');
 }
 
@@ -151,7 +154,11 @@ export async function searchBetor(
 
       const magnet = item.magnet_uri || buildMagnet(infoHash, titulo);
       const language = mapLanguage(item.languages);
-      const { size, sizeInBytes } = formatSize(item.torrent_size);
+       const episodeSize = item.file_size || item.episode_size;
+       const { size, sizeInBytes } = formatSize(episodeSize || item.torrent_size);
+       const packSize = episodeSize && item.torrent_size && item.torrent_size > episodeSize
+         ? formatSize(item.torrent_size).size
+         : item.folder_size ? formatSize(item.folder_size).size : undefined;
       const quality = qualidade.extractQualityFromFilename(titulo);
 
       const season = item.seasons?.[0];
@@ -162,7 +169,7 @@ export async function searchBetor(
         magnet,
         seeders: item.torrent_num_seeds || 0,
         leechers: 0,
-        size,
+         size: packSize ? `${size} / ${packSize}` : size,
         quality,
         provider: 'Betor',
         language,

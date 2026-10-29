@@ -82,9 +82,8 @@ export class StreamFormatter {
     }
     const idiomaLabel = this.formatarIdioma(language || 'PT-BR');
     terceiraLinha.push(`🌐 ${idiomaLabel}${flags ? ' ' + flags : ''}`);
-    if (dataUpload) {
-      terceiraLinha.push(`📅 ${dataUpload}`);
-    }
+    // Não exibir data de upload. AIOStreams pode interpretar essa data como
+    // ano/idade do conteúdo e rejeitar séries antigas com releases recentes.
     if (terceiraLinha.length > 0) {
       result += '\n' + terceiraLinha.join(' ');
     }

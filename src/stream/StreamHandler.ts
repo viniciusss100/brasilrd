@@ -352,8 +352,11 @@ export class StreamHandler {
             continue;
           }
         }
+        const torrentForDisplay = request.type === 'series'
+          ? { ...torrent, title: torrent.title.replace(/\b(?:19|20)\d{2}\b/g, ' ').replace(/\s{2,}/g, ' ').trim() }
+          : torrent;
         const formatted = await this.streamFormatter.createMultipleQualityStreams(
-          torrent, request, null, request.type,
+          torrentForDisplay, request, null, request.type,
           torrent.season, torrent.episode, false, undefined, false
         );
         streams.push(...formatted);
