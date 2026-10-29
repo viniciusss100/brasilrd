@@ -50,7 +50,7 @@ function formatExternalStreamTitle(raw: StremioStream, addonName: string): { nam
   const size = rawTitle.match(/💾\s*([\d.,]+\s*(?:TB|GB|MB|KB|B))/i)?.[1] ||
     rawTitle.match(/(?:size|tamanho)\s*[:=]?\s*([\d.,]+\s*(?:TB|GB|MB|KB|B))/i)?.[1] || '';
   const seeds = rawTitle.match(/👤\s*(\d+)/)?.[1] || String(hints.seeders ?? hints.seeds ?? '0');
-  const language = /dual|dublado|pt-?br|🇧🇷/i.test(rawTitle) ? '🌐 PT-BR 🇧🇷' : '';
+  const language = detectAudioLanguages(rawTitle);
   const indexer = `🔍 ${displayAddon}`;
   const details = [
     [`💾${size || hintedSize || 'N/A'}`, `👤${seeds}`, indexer].join(' '),
@@ -59,6 +59,20 @@ function formatExternalStreamTitle(raw: StremioStream, addonName: string): { nam
   ].filter(Boolean).join('\n');
   const sizeBytes = typeof hints.videoSize === 'number' ? hints.videoSize : undefined;
   return { name: `${quality}`, title: `${main}\n📄 ${filename}\n${details}`, filename, sizeBytes };
+}
+
+/** AIOStreams reconhece nomes de idiomas melhor que rótulos "Dual" ou códigos. */
+function detectAudioLanguages(text: string): string {
+  const hasPortuguese = /pt-?br|ptbr|portugu[eê]s|brazilian|dublad|nacional|🇧🇷/i.test(text);
+  const hasEnglish = /\b(?:english|ingl[eê]s|eng|en-us|\ben\b)\b/i.test(text);
+  const hasSpanish = /\b(?:spanish|espanhol|espa[nñ]ol|esp)\b/i.test(text);
+  const hasFrench = /\b(?:french|franc[eê]s|fr)\b/i.test(text);
+  const languages: string[] = [];
+  if (hasPortuguese) languages.push('Portuguese (Brasil)');
+  if (hasEnglish) languages.push('English');
+  if (hasSpanish) languages.push('Spanish');
+  if (hasFrench) languages.push('French');
+  return languages.length > 0 ? `🌐 ${languages.join(' / ')}` : '';
 }
 
 function qualityLabel(quality: string): string {
