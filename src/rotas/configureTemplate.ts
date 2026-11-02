@@ -454,7 +454,7 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             <hr class="divider">
 
             <!-- Torbox referral -->
-            <a class="torbox-btn" href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" rel="noopener">
+            <a class="torbox-btn" href="https://torbox.app/subscription?referral=e2437622-108c-4d82-b394-1d25ea78a812" target="_blank" rel="noopener">
                 <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 Assinar Torbox <span class="offer-badge">OFERTA</span>
             </a>
