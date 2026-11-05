@@ -123,9 +123,10 @@ interface StremioStream {
 let cachedAddons: AddonInfo[] | null = null;
 let cacheTimestamp = 0;
 const MANIFEST_TTL = 12 * 60 * 60 * 1000; // 12 horas
-const RESPONSE_TTL = 10 * 60 * 1000; // 10 min
+const RESPONSE_TTL = 3 * 60 * 60 * 1000; // 3 horas
 const MAX_STREAMS_PER_ADDON = 20;
-const responseCache = new Map<string, { expires: number; streams: Stream[] }>();
+type CachedExternalStream = { stream: StremioStream; addonName: string };
+const responseCache = new Map<string, { expires: number; streams: CachedExternalStream[] }>();
 
 function getManifestUrls(): string[] {
   const raw = process.env.EXTERNAL_ADDON_MANIFESTS || '';
@@ -280,16 +281,18 @@ export async function fetchExternalAddonStreams(
   const eligible = addons.filter(a => addonSupportsStream(a, type, id));
   if (eligible.length === 0) return [];
 
-  // URLs de debrid são específicas da API Key; cachear essas URLs poderia
-  // misturar usuários. Cache somente respostas P2P.
-  const cacheKey = `${type}:${id}:p2p`;
-  if (!apiKey) {
-    const cached = responseCache.get(cacheKey);
-    if (cached && cached.expires > Date.now()) return cached.streams;
-    if (cached) responseCache.delete(cacheKey);
+  // Cache compartilha somente resposta bruta do addon. URL Torbox é gerada
+  // depois, por usuário, usando API Key própria.
+  const cacheKey = `${type}:${id}`;
+  const cached = responseCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    const converted = await Promise.all(cached.streams.map(({ stream, addonName }) =>
+      stremioStreamToStream(stream, addonName, apiKey, type, id)));
+    return converted.filter((stream): stream is Stream => stream !== null);
   }
+  if (cached) responseCache.delete(cacheKey);
 
-  const results: Stream[] = [];
+  const rawResults: CachedExternalStream[] = [];
 
   await Promise.allSettled(
     eligible.map(async addon => {
@@ -304,9 +307,9 @@ export async function fetchExternalAddonStreams(
           : [];
         let aceitos = 0;
         for (const s of streams) {
-          const stream = await stremioStreamToStream(s, addon.manifest.name, apiKey, type, id);
-          if (stream) {
-            results.push(stream);
+           const stream = await stremioStreamToStream(s, addon.manifest.name, undefined, type, id);
+           if (stream) {
+             rawResults.push({ stream: s, addonName: addon.manifest.name });
             aceitos++;
           } else {
             logger.debug('Stream externo descartado (sem url/infoHash)', {
@@ -331,9 +334,11 @@ export async function fetchExternalAddonStreams(
     })
   );
 
-  const limited = results.slice(0, MAX_STREAMS_PER_ADDON * eligible.length);
-  if (!apiKey) responseCache.set(cacheKey, { expires: Date.now() + RESPONSE_TTL, streams: limited });
-  return limited;
+  const limited = rawResults.slice(0, MAX_STREAMS_PER_ADDON * eligible.length);
+  responseCache.set(cacheKey, { expires: Date.now() + RESPONSE_TTL, streams: limited });
+  const converted = await Promise.all(limited.map(({ stream, addonName }) =>
+    stremioStreamToStream(stream, addonName, apiKey, type, id)));
+  return converted.filter((stream): stream is Stream => stream !== null);
 }
 
 /** Invalida cache de manifests (útil em testes ou hot-reload) */
