@@ -147,6 +147,32 @@ export class StreamHandler {
     return uniqueStreams;
   }
 
+  /** Ordem global: cache Torbox, resolução, tamanho; depois não-cache. */
+  private sortStreams(streams: Stream[]): Stream[] {
+    const resolution = (stream: Stream): number => {
+      const text = `${stream.name || ''} ${stream.title || ''} ${stream.behaviorHints?.streamQuality || ''}`.toLowerCase();
+      if (/2160p|4k/.test(text)) return 4;
+      if (/1080p|fhd/.test(text)) return 3;
+      if (/720p|hd/.test(text)) return 2;
+      return 1;
+    };
+    const size = (stream: Stream): number => {
+      if (typeof stream.behaviorHints?.videoSize === 'number') return stream.behaviorHints.videoSize;
+      const match = `${stream.title || ''}`.match(/💾\s*([\d.,]+)\s*(TB|GB|MB|KB)/i);
+      if (!match) return 0;
+      const value = Number(match[1].replace(',', '.'));
+      const unit = match[2].toUpperCase();
+      return value * ({ TB: 1024 ** 4, GB: 1024 ** 3, MB: 1024 ** 2, KB: 1024 }[unit] || 1);
+    };
+    const cached = (stream: Stream): number => /⚡️|⚡/i.test(stream.name || '') ? 1 : 0;
+    return streams.sort((a, b) =>
+      cached(b) - cached(a) ||
+      resolution(b) - resolution(a) ||
+      size(b) - size(a) ||
+      (a.title || '').localeCompare(b.title || '')
+    );
+  }
+
   public async handleStreamRequest(request: StreamRequest): Promise<{ streams: Stream[] }> {
     const requestId = request.id;
     this.stats.totalRequests++;
@@ -176,7 +202,7 @@ export class StreamHandler {
           ...allowedExternal,
           ...allowedBetor,
         ]);
-        return { streams: merged };
+        return { streams: this.sortStreams(merged) };
       }
 
       // Sem DB: tenta catálogo/scraping (que já inclui externos internamente)
@@ -189,12 +215,12 @@ export class StreamHandler {
           ...allowedExternal,
           ...allowedBetor,
         ]);
-        return { streams: merged };
+          return { streams: this.sortStreams(merged) };
       }
 
       // Só externos (sem DB nem catálogo)
       if (allowedExternal.length > 0 || allowedBetor.length > 0) {
-        return { streams: this.deduplicateStreamsByInfoHash([...allowedExternal, ...allowedBetor]) };
+        return { streams: this.sortStreams(this.deduplicateStreamsByInfoHash([...allowedExternal, ...allowedBetor])) };
       }
 
       // Sem streams no DB nem no catálogo → retorna vazio (sem resultado fake de "Baixando")
