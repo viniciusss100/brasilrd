@@ -9,6 +9,9 @@
       "memory": 1024
     }
   },
+  "redirects": [
+    { "source": "/", "destination": "/configure", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ]

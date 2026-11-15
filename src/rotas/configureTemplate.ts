@@ -328,6 +328,35 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             flex-shrink: 0;
         }
 
+        .instance-links {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .instance-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 8px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .instance-btn:hover {
+            background: rgba(255,255,255,0.07);
+            border-color: rgba(255,255,255,0.25);
+        }
+        @media (max-width: 420px) {
+            .instance-links { grid-template-columns: 1fr; }
+        }
+
         /* Install button */
         .install-btn {
             display: block;
@@ -452,6 +481,13 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             </div>
 
             <hr class="divider">
+
+            <!-- Instâncias -->
+            <div class="section-label">Instâncias</div>
+            <div class="instance-links">
+                <a class="instance-btn" href="https://pjbr.onrender.com" target="_blank" rel="noopener">☁️ Render</a>
+                <a class="instance-btn" href="https://pjbr2.vercel.app/configure" target="_blank" rel="noopener">▲ Vercel</a>
+            </div>
 
             <!-- Torbox referral -->
             <a class="torbox-btn" href="https://torbox.app/subscription?referral=e2437622-108c-4d82-b394-1d25ea78a812" target="_blank" rel="noopener">
