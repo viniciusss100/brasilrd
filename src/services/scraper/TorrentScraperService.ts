@@ -16,7 +16,12 @@ const SOURCE_TIMEOUT_MS = 20000;
 
 function scraperEnabled(name: string): boolean {
     const value = process.env[name]?.trim().toLowerCase();
-    return value === undefined || !['0', 'false', 'off', 'no'].includes(value);
+    // Sem variável definida: padrão é DESABILITADO para Bludv (Cloudflare bloqueia scraping),
+    // e HABILITADO para os demais.
+    if (value === undefined) {
+        return name !== 'SCRAPER_BLUDV_ENABLED';
+    }
+    return !['0', 'false', 'off', 'no'].includes(value);
 }
 
 function withTimeout<T>(promise: Promise<T>, fallback: T, ms: number = SOURCE_TIMEOUT_MS): Promise<T> {
