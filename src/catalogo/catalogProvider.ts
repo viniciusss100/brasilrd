@@ -16,6 +16,7 @@ import { SimilarityCalculator } from '../titulos/SimilarityCalculator.js';
 import { INDICADORES_INTERNACIONAL_TORRENTS } from '../titulos/TechnicalWords.js';
 import { isExcludedRelease } from '../lib/releaseFilter.js';
 import { fetchExternalAddonStreams } from '../catalogo/ExternalAddonService.js';
+import { SingleFlight } from '../lib/singleFlight.js';
 
 // Legendado indicators da fonte unica (TechnicalWords)
 const LEGENDADO_REGEX = new RegExp(
@@ -64,7 +65,7 @@ export class CatalogProvider {
   private readonly CACHE_KEY_SEPARATOR = '|';
 
   // Apenas evita scraping simultâneo para o mesmo conteúdo (sem cooldown)
-  private readonly inFlightScraping: Set<string> = new Set();
+  private readonly scrapingSingleFlight = new SingleFlight();
 
   private tmdbDataCache = new Map<string, { data: TmdbSearchData; timestamp: number }>();
   private readonly TMDB_CACHE_TTL = 5 * 60 * 1000;
@@ -129,15 +130,13 @@ export class CatalogProvider {
 
     if (uniqueJson.length === 0) {
       // Sem cache local: dispara scraping + addons externos em paralelo
-      const shouldScrape = await this.shouldAttemptScraping(request);
-      if (!shouldScrape) {
-        this.saveToCache(cacheKey, []);
-        this.logger.info('📋 Catálogo: 0 streams (scraping bloqueado)', { imdbId: request.imdbId || request.id, season, episode });
-        return [];
-      }
+      const sfKey = `${this.extractBaseImdbId(request.imdbId || request.id) || request.id}:${request.type}:${season ?? ''}:${episode ?? ''}`;
 
-      this.markScrapingStart(request);
-      try {
+      return this.scrapingSingleFlight.do(sfKey, async () => {
+        // Check cache again inside single-flight (may have been populated while waiting)
+        const freshCached = this.getFromCache(cacheKey);
+        if (freshCached !== null) return freshCached;
+
         this.logger.debug(`Iniciando scraping para ${request.imdbId || request.id}`);
 
         // Scraping nativo + addons externos em paralelo
@@ -158,9 +157,7 @@ export class CatalogProvider {
         });
         this.saveToCache(cacheKey, combined);
         return combined;
-      } finally {
-        this.markScrapingEnd(request);
-      }
+      });
     }
 
     // Cache local existe: retorna imediatamente + busca externos sem bloquear
@@ -184,9 +181,10 @@ export class CatalogProvider {
   /** Busca streams de addons externos configurados via EXTERNAL_ADDON_MANIFESTS */
   private async fetchExternalStreams(request: any): Promise<Stream[]> {
     if (!process.env.EXTERNAL_ADDON_MANIFESTS?.trim()) return [];
+    const useTorz = request.config?.useTorz !== false;
     try {
       const externalId = request.imdbId || request.id;
-      const streams = await fetchExternalAddonStreams(request.type, externalId, request.apiKey);
+      const streams = await fetchExternalAddonStreams(request.type, externalId, request.apiKey, useTorz);
       if (streams.length > 0) {
         this.logger.debug('Streams de addons externos recebidos', { count: streams.length, id: externalId });
       }
@@ -465,30 +463,6 @@ export class CatalogProvider {
     }
   }
 
-  /**
-   * Permite scraping SEMPRE, a menos que já exista um scraping em andamento
-   * para o mesmo conteúdo (evita requisições simultâneas duplicadas).
-   */
-  private async shouldAttemptScraping(request: any): Promise<boolean> {
-    const key = `${this.extractBaseImdbId(request.imdbId || request.id) || request.id}:${request.type}`;
-    if (this.inFlightScraping.has(key)) {
-      this.logger.debug(' Scraping já em andamento, aguardando...', { key });
-      return false;
-    }
-    return true;
-  }
-
-  /** Marca início do scraping para evitar duplicação simultânea */
-  private markScrapingStart(request: any): void {
-    const key = `${this.extractBaseImdbId(request.imdbId || request.id) || request.id}:${request.type}`;
-    this.inFlightScraping.add(key);
-  }
-
-  /** Marca fim do scraping (sucesso ou falha) */
-  private markScrapingEnd(request: any): void {
-    const key = `${this.extractBaseImdbId(request.imdbId || request.id) || request.id}:${request.type}`;
-    this.inFlightScraping.delete(key);
-  }
 
   private async getStreamsFromJson(request: any, season?: number, episode?: number): Promise<Stream[]> {
     const curated = this.magnetService.searchMagnets(request);
@@ -613,7 +587,7 @@ export class CatalogProvider {
   getStats() {
     return {
       cacheSize: this.streamCache.size,
-      inFlightScraping: this.inFlightScraping.size,
+      inFlightScraping: this.scrapingSingleFlight.size,
       tmdbCacheSize: this.tmdbDataCache.size
     };
   }

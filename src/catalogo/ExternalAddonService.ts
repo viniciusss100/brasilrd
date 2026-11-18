@@ -16,6 +16,7 @@ import { Logger } from '../utils/logger.js';
 import { Stream } from '../types/index.js';
 import { gerarUrlResolve } from '../magnet/magnetHelper.js';
 import { QualityDetector } from '../lib/qualityDetector.js';
+import { SingleFlight } from '../lib/singleFlight.js';
 
 const logger = new Logger('ExternalAddonService');
 const qualityDetector = QualityDetector.getInstance();
@@ -127,6 +128,7 @@ const RESPONSE_TTL = 3 * 60 * 60 * 1000; // 3 horas
 const MAX_STREAMS_PER_ADDON = 20;
 type CachedExternalStream = { stream: StremioStream; addonName: string };
 const responseCache = new Map<string, { expires: number; streams: CachedExternalStream[] }>();
+const externalSingleFlight = new SingleFlight();
 
 function getManifestUrls(): string[] {
   const raw = process.env.EXTERNAL_ADDON_MANIFESTS || '';
@@ -272,11 +274,17 @@ export async function fetchExternalAddonStreams(
   type: string,
   id: string,
   apiKey?: string,
+  useTorz: boolean = true,
 ): Promise<Stream[]> {
   if (!process.env.EXTERNAL_ADDON_MANIFESTS?.trim()) return [];
 
-  const addons = await getAddons();
-  if (addons.length === 0) return [];
+  const allAddons = await getAddons();
+  if (allAddons.length === 0) return [];
+
+  // Filtra addons do Torz se o usuário desativou
+  const addons = useTorz
+    ? allAddons
+    : allAddons.filter(a => !/stremthru.*torz/i.test(a.manifest.name) && !/torz/i.test(a.manifest.id));
 
   const eligible = addons.filter(a => addonSupportsStream(a, type, id));
   if (eligible.length === 0) return [];
@@ -296,41 +304,48 @@ export async function fetchExternalAddonStreams(
 
   await Promise.allSettled(
     eligible.map(async addon => {
+      const addonCacheKey = `${addon.manifest.id}:${type}:${id}`;
       const url = `${addon.baseUrl}/stream/${type}/${encodeURIComponent(id)}.json`;
-      try {
-        const res = await axios.get(url, {
-          timeout: 8000,
-          headers: { 'User-Agent': 'Stremio/4.4' },
-        });
-        const streams: StremioStream[] = Array.isArray(res.data?.streams)
-          ? res.data.streams.slice(0, MAX_STREAMS_PER_ADDON)
-          : [];
-        let aceitos = 0;
-        for (const s of streams) {
-           const stream = await stremioStreamToStream(s, addon.manifest.name, undefined, type, id);
-           if (stream) {
-             rawResults.push({ stream: s, addonName: addon.manifest.name });
-            aceitos++;
-          } else {
-            logger.debug('Stream externo descartado (sem url/infoHash)', {
-              addon: addon.manifest.id,
-              name: s.name,
-              title: (s.title || '').substring(0, 60),
-            });
-          }
+
+      const addonStreams = await externalSingleFlight.do(addonCacheKey, async () => {
+        try {
+          const res = await axios.get(url, {
+            timeout: 8000,
+            headers: { 'User-Agent': 'Stremio/4.4' },
+          });
+          const streams: StremioStream[] = Array.isArray(res.data?.streams)
+            ? res.data.streams.slice(0, MAX_STREAMS_PER_ADDON)
+            : [];
+          return streams;
+        } catch (err) {
+          logger.warn('Falha ao buscar streams do addon externo', {
+            addon: addon.manifest.id,
+            url,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return [];
         }
-        logger.debug(`Addon externo retornou ${streams.length} streams (${aceitos} aceitos)`, {
-          addon: addon.manifest.id,
-          type,
-          id,
-        });
-      } catch (err) {
-        logger.warn('Falha ao buscar streams do addon externo', {
-          addon: addon.manifest.id,
-          url,
-          error: err instanceof Error ? err.message : String(err),
-        });
+      });
+
+      let aceitos = 0;
+      for (const s of addonStreams) {
+        const stream = await stremioStreamToStream(s, addon.manifest.name, undefined, type, id);
+        if (stream) {
+          rawResults.push({ stream: s, addonName: addon.manifest.name });
+          aceitos++;
+        } else {
+          logger.debug('Stream externo descartado (sem url/infoHash)', {
+            addon: addon.manifest.id,
+            name: s.name,
+            title: (s.title || '').substring(0, 60),
+          });
+        }
       }
+      logger.debug(`Addon externo retornou ${addonStreams.length} streams (${aceitos} aceitos)`, {
+        addon: addon.manifest.id,
+        type,
+        id,
+      });
     })
   );
 

@@ -331,9 +331,11 @@ export class StreamHandler {
 
   private async getExternalAddonStreams(request: StreamRequest): Promise<Stream[]> {
     if (!process.env.EXTERNAL_ADDON_MANIFESTS?.trim()) return [];
+    // useTorz padrão true para compatibilidade com instâncias sem o campo (tokens antigos)
+    const useTorz = request.config?.useTorz !== false;
     try {
       const id = request.imdbId || request.id;
-      const streams = await fetchExternalAddonStreams(request.type, id, request.apiKey);
+      const streams = await fetchExternalAddonStreams(request.type, id, request.apiKey, useTorz);
       if (streams.length > 0) {
         this.logger.debug('StreamHandler: externos recebidos', { count: streams.length, id });
       }

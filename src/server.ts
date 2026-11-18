@@ -18,7 +18,7 @@ import { createServer } from './rotas/serverFunctions.js';
 import { CacheService } from './debrid/CacheService.js';
 import { Logger } from './utils/logger.js';
 import { clientInfoMiddleware } from './middlewares/clientInfo.js';
-import { createRateLimiter, torrentioRateLimiter, configureRateLimiter } from './middlewares/rateLimit.js';
+import { createRateLimiter, torrentioRateLimiter, configureRateLimiter, scraperDetectionMiddleware, streamRateLimiter } from './middlewares/rateLimit.js';
 import { metricsService } from './catalogo/MetricsService.js';
 import { ultraDebugMiddleware, manifestDebugMiddleware, configureDebugMiddleware } from './middlewares/ultraDebug.js';
 import { etagMiddleware } from './middlewares/etag.js';
@@ -47,6 +47,7 @@ app.use(ultraDebugMiddleware());
 app.use(clientInfoMiddleware());
 app.use(metricsService.httpMetricsMiddleware());
 app.use(createRateLimiter());
+app.use(scraperDetectionMiddleware());
 
 // Interceptor Torrentio / rotas encriptadas
 app.use((req: any, res: any, next: any) => {
@@ -58,7 +59,7 @@ app.use((req: any, res: any, next: any) => {
 
 // Gera o token encriptado usado na URL de manifest (chama isso o "configure" antes de instalar)
 app.post('/api/encrypt-config', configureRateLimiter, async (req: any, res: any) => {
-    const { apiKey, p2p, excludeKeywords, excludeQuality } = req.body || {};
+    const { apiKey, p2p, excludeKeywords, excludeQuality, useTorz } = req.body || {};
     const isP2p = !!p2p;
     
     // apiKey só é obrigatória se o modo P2P NÃO estiver ativado
@@ -88,7 +89,7 @@ app.post('/api/encrypt-config', configureRateLimiter, async (req: any, res: any)
         }
     }
     
-    const token = encryptConfig({ apiKey: apiKey || '', p2p: isP2p, excludeKeywords: !!excludeKeywords, excludeQuality: !!excludeQuality });
+    const token = encryptConfig({ apiKey: apiKey || '', p2p: isP2p, excludeKeywords: !!excludeKeywords, excludeQuality: !!excludeQuality, useTorz: !!useTorz });
     res.json({ success: true, token });
 });
 
@@ -244,7 +245,7 @@ app.get('/e/:token/manifest.json', torrentioRateLimiter, manifestDebugMiddleware
 });
 
 // ROTA ENCRIPTADA: /e/:token/stream/:type/:id.json
-app.get('/e/:token/stream/:type/:id.json', torrentioRateLimiter, async (req: any, res: any) => {
+app.get('/e/:token/stream/:type/:id.json', torrentioRateLimiter, streamRateLimiter(), async (req: any, res: any) => {
     const { type, id } = req.params;
     const decodedId = decodeURIComponent(id);
     const cfg = decryptConfig(req.params.token);
@@ -281,7 +282,8 @@ app.get('/e/:token/stream/:type/:id.json', torrentioRateLimiter, async (req: any
                 maxResults: '25',
                 p2p: isP2p,
                 excludeKeywords: !!cfg.excludeKeywords,
-                excludeQuality: !!cfg.excludeQuality
+                excludeQuality: !!cfg.excludeQuality,
+                useTorz: cfg.useTorz !== false  // padrão: true (compatibilidade com tokens antigos)
             }
         };
 
@@ -294,7 +296,7 @@ app.get('/e/:token/stream/:type/:id.json', torrentioRateLimiter, async (req: any
 });
 
 // ROTA TORRENTIO 2: /torbox=APIKEY/stream/:type/:id.json
-app.get('/torbox=:apiKey/stream/:type/:id.json', torrentioRateLimiter, async (req: any, res: any) => {
+app.get('/torbox=:apiKey/stream/:type/:id.json', torrentioRateLimiter, streamRateLimiter(), async (req: any, res: any) => {
     const ultraLogger = new Logger('STREAM-TORBOX');
     const { apiKey, type, id } = req.params;
     const decodedId = decodeURIComponent(id);

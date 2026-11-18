@@ -6,6 +6,21 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
     const logo = manifest.logo || '';
     const inicialApiKey = apiKey || '';
     const showP2p = p2pEnabled;
+    const hasTorz = !!(process.env.EXTERNAL_ADDON_MANIFESTS || '').toLowerCase().includes('torz');
+
+    const torzBlock = hasTorz ? `
+            <div class="torz-section">
+                <div class="toggle-row toggle-row--warning" onclick="toggleOption('useTorz')" id="torzToggleRow">
+                    <div class="toggle-label">
+                        <span class="toggle-title">&#127758; Ativar Torz</span>
+                        <span class="toggle-desc">Busca P2P via StremThru Torz</span>
+                    </div>
+                    <label class="switch" onclick="event.stopPropagation()"><input type="checkbox" id="useTorz"><span class="slider"></span></label>
+                </div>
+                <div class="torz-warning">
+                    &#9888;&#65039; A busca pelo Torz pode ser mais lenta que as demais fontes. N&#227;o &#233; recomendado ativ&#225;-lo quando o PJBR estiver integrado ao AIOStreams, pois isso pode aumentar significativamente o tempo de resposta das pesquisas.
+                </div>
+            </div>` : '';
 
     return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -290,43 +305,64 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
         .switch input:checked ~ .slider { background: var(--accent); }
         .switch input:checked ~ .slider::after { left: 21px; }
 
-        /* Torbox referral button */
+        /* Torbox referral — featured */
+        .torbox-referral-wrap { margin-bottom: 16px; }
         .torbox-btn {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 8px;
+            justify-content: space-between;
             width: 100%;
-            padding: 11px;
-            background: rgba(124,58,237,0.08);
-            border: 1px solid rgba(124,58,237,0.25);
+            padding: 13px 16px;
+            background: linear-gradient(135deg, rgba(124,58,237,0.12), rgba(168,85,247,0.08));
+            border: 1px solid rgba(124,58,237,0.35);
             border-radius: var(--radius-sm);
-            color: #a78bfa;
+            color: #c4b5fd;
             font-family: inherit;
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
             text-decoration: none;
-            transition: background 0.2s, border-color 0.2s;
-            margin-bottom: 16px;
+            transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 12px rgba(124,58,237,0.15);
         }
-        .torbox-btn:hover {
-            background: rgba(124,58,237,0.15);
-            border-color: rgba(124,58,237,0.45);
-            color: #c4b5fd;
+        .torbox-btn--featured {
+            border-color: rgba(124,58,237,0.5);
+            box-shadow: 0 0 0 1px rgba(124,58,237,0.1), 0 4px 16px rgba(124,58,237,0.2);
         }
-        .offer-badge { display:inline-flex; background:#22c55e; color:#052e16; border-radius:999px; padding:3px 9px; font-size:10px; font-weight:700; margin-left:4px; }
-        .offer-copy { text-align:center; color:#a7f3d0; font-size:12px; line-height:1.45; margin:-8px 0 16px; }
-        .torbox-btn svg {
-            width: 15px;
-            height: 15px;
+        .torbox-btn:hover, .torbox-btn--featured:hover {
+            background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(168,85,247,0.14));
+            border-color: rgba(168,85,247,0.6);
+            color: #ddd6fe;
+            box-shadow: 0 0 0 1px rgba(124,58,237,0.2), 0 6px 20px rgba(124,58,237,0.3);
+        }
+        .torbox-btn-left { display: flex; align-items: center; gap: 12px; }
+        .torbox-icon {
+            width: 18px;
+            height: 18px;
             fill: none;
             stroke: currentColor;
             stroke-width: 2;
             stroke-linecap: round;
             stroke-linejoin: round;
             flex-shrink: 0;
+            opacity: 0.9;
         }
+        .torbox-btn-text { display: flex; flex-direction: column; gap: 2px; text-align: left; }
+        .torbox-btn-title { font-size: 14px; font-weight: 600; color: #ddd6fe; }
+        .torbox-btn-sub { font-size: 10.5px; color: #a78bfa; opacity: 0.85; }
+        .offer-badge {
+            display: inline-flex;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #052e16;
+            border-radius: 999px;
+            padding: 3px 9px;
+            font-size: 10px;
+            font-weight: 700;
+            margin-left: 4px;
+            flex-shrink: 0;
+        }
+        .offer-badge--lg { padding: 4px 12px; font-size: 11px; white-space: nowrap; }
+        .offer-copy { text-align: center; color: #a7f3d0; font-size: 12px; line-height: 1.45; margin: 8px 0 0; }
 
         .instance-links {
             display: grid;
@@ -337,9 +373,8 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
         .instance-btn {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 10px 8px;
+            gap: 10px;
+            padding: 11px 12px;
             background: rgba(255,255,255,0.03);
             border: 1px solid rgba(255,255,255,0.12);
             border-radius: var(--radius-sm);
@@ -347,11 +382,43 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             font-size: 12px;
             font-weight: 500;
             text-decoration: none;
-            transition: background 0.2s, border-color 0.2s;
+            transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
         }
         .instance-btn:hover {
             background: rgba(255,255,255,0.07);
             border-color: rgba(255,255,255,0.25);
+        }
+        .instance-icon { font-size: 18px; flex-shrink: 0; }
+        .instance-info { display: flex; flex-direction: column; gap: 2px; }
+        .instance-name { font-size: 13px; font-weight: 600; }
+        .instance-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 1px 7px;
+            border-radius: 999px;
+            background: rgba(34, 197, 94, 0.15);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.25);
+        }
+        .instance-badge--vercel {
+            background: rgba(255,255,255,0.08);
+            color: #e2e8f0;
+            border-color: rgba(255,255,255,0.2);
+        }
+        .instance-btn--render {
+            border-color: rgba(34, 197, 94, 0.2);
+        }
+        .instance-btn--render:hover {
+            border-color: rgba(34, 197, 94, 0.45);
+            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.1);
+        }
+        .instance-btn--vercel {
+            border-color: rgba(255,255,255,0.18);
+        }
+        .instance-btn--vercel:hover {
+            border-color: rgba(255,255,255,0.4);
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
         }
         @media (max-width: 420px) {
             .instance-links { grid-template-columns: 1fr; }
@@ -445,6 +512,25 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             transform: translateX(-50%) translateY(0);
         }
 
+        /* Torz section */
+        .torz-section { margin-top: 4px; }
+        .toggle-row--warning {
+            border-color: rgba(245, 158, 11, 0.25);
+        }
+        .toggle-row--warning:hover {
+            border-color: rgba(245, 158, 11, 0.45);
+        }
+        .torz-warning {
+            margin-top: 8px;
+            padding: 10px 14px;
+            background: rgba(245, 158, 11, 0.07);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            border-radius: var(--radius-sm);
+            font-size: 11.5px;
+            color: #fbbf24;
+            line-height: 1.5;
+        }
+
         /* Mobile */
         @media (max-width: 480px) {
             .card-body { padding: 28px 20px 24px; }
@@ -483,18 +569,38 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             <hr class="divider">
 
             <!-- Instâncias -->
-            <div class="section-label">Instâncias</div>
+            <div class="section-label">Instâncias Gratuitas</div>
             <div class="instance-links">
-                <a class="instance-btn" href="https://pjbr.onrender.com" target="_blank" rel="noopener">☁️ Render</a>
-                <a class="instance-btn" href="https://pjbr2.vercel.app/configure" target="_blank" rel="noopener">▲ Vercel</a>
+                <a class="instance-btn instance-btn--render" href="https://pjbr.onrender.com" target="_blank" rel="noopener">
+                    <span class="instance-icon">☁️</span>
+                    <span class="instance-info">
+                        <span class="instance-name">Render</span>
+                        <span class="instance-badge">Gratuito</span>
+                    </span>
+                </a>
+                <a class="instance-btn instance-btn--vercel" href="https://pjbr2.vercel.app/configure" target="_blank" rel="noopener">
+                    <span class="instance-icon">▲</span>
+                    <span class="instance-info">
+                        <span class="instance-name">Vercel</span>
+                        <span class="instance-badge instance-badge--vercel">Gratuito</span>
+                    </span>
+                </a>
             </div>
 
-            <!-- Torbox referral -->
-            <a class="torbox-btn" href="https://torbox.app/subscription?referral=e2437622-108c-4d82-b394-1d25ea78a812" target="_blank" rel="noopener">
-                <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                Assinar Torbox <span class="offer-badge">OFERTA</span>
-            </a>
-            <div class="offer-copy"><strong>Ganhe 7 dias extras a cada mês assinado</strong><br>12 meses = <strong>84 dias bônus</strong></div>
+            <!-- Torbox referral — destacado -->
+            <div class="torbox-referral-wrap">
+                <a class="torbox-btn torbox-btn--featured" href="https://torbox.app/subscription?referral=e2437622-108c-4d82-b394-1d25ea78a812" target="_blank" rel="noopener">
+                    <span class="torbox-btn-left">
+                        <svg viewBox="0 0 24 24" class="torbox-icon"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                        <span class="torbox-btn-text">
+                            <span class="torbox-btn-title">Assinar TorBox</span>
+                            <span class="torbox-btn-sub">Link de indicação • Suporte ao PJBR</span>
+                        </span>
+                    </span>
+                    <span class="offer-badge offer-badge--lg">+7 dias/mês</span>
+                </a>
+                <div class="offer-copy">12 meses = <strong>84 dias bônus</strong> grátis</div>
+            </div>
 
             <!-- API Key -->
             <div class="section-label">Chave de API</div>
@@ -524,13 +630,15 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             ` : `<input type="hidden" id="p2pMode" value="false">`}
 
             <div class="toggle-row" onclick="toggleOption('excludeKeywords')">
-                <div class="toggle-label"><span class="toggle-title">Filtrar keywords ruins</span><span class="toggle-desc">CAM, Dual-LAT, Cinecalidad, sample, VF...</span></div>
+                <div class="toggle-label"><span class="toggle-title">Remover keywords ruins</span><span class="toggle-desc">CAM, Dual-LAT, Cinecalidad, sample, VF...</span></div>
                 <label class="switch" onclick="event.stopPropagation()"><input type="checkbox" id="excludeKeywords"><span class="slider"></span></label>
             </div>
             <div class="toggle-row" onclick="toggleOption('excludeQuality')">
-                <div class="toggle-label"><span class="toggle-title">Filtrar qualidade ruim</span><span class="toggle-desc">CAM, CAMRip, TC, HDTC</span></div>
+                <div class="toggle-label"><span class="toggle-title">Remover qualidade ruim</span><span class="toggle-desc">CAM, CAMRip, TC, HDTC</span></div>
                 <label class="switch" onclick="event.stopPropagation()"><input type="checkbox" id="excludeQuality"><span class="slider"></span></label>
             </div>
+
+            ${torzBlock}
 
             <hr class="divider">
 
@@ -589,6 +697,8 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
             const isP2p  = isP2pActive();
             const excludeKeywords = document.getElementById('excludeKeywords').checked;
             const excludeQuality = document.getElementById('excludeQuality').checked;
+            const useTorzEl = document.getElementById('useTorz');
+            const useTorz = useTorzEl ? useTorzEl.checked : false;
             const base   = window.location.protocol + '//' + window.location.host;
 
             if (!isP2p && !apiKey) {
@@ -601,7 +711,7 @@ export const configureTemplate = (manifest: any, apiKey: string = '', p2pEnabled
                 const resp = await fetch('/api/encrypt-config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ apiKey, p2p: isP2p, excludeKeywords, excludeQuality })
+                    body: JSON.stringify({ apiKey, p2p: isP2p, excludeKeywords, excludeQuality, useTorz })
                 });
                 const data = await resp.json();
                 if (!data.success) throw new Error(data.error || 'erro');

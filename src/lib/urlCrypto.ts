@@ -15,6 +15,7 @@ export interface ConfigPayload {
   p2p?: boolean;
   excludeKeywords?: boolean;
   excludeQuality?: boolean;
+  useTorz?: boolean;
 }
 
 /** Gera token opaco (base64url) contendo a config criptografada. */

@@ -44,6 +44,7 @@ export interface StreamRequest {
     p2p?: boolean;
     excludeKeywords?: boolean;
     excludeQuality?: boolean;
+    useTorz?: boolean;
   };
 }
 
