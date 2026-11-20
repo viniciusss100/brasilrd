@@ -26,7 +26,7 @@ export class StreamFormatter {
     this.qualityDetector = QualityDetector.getInstance();
     this.metadataExtractor = MetadataExtractor.getInstance();
     // Versionamento Semântico v2.0.0 - MAJOR: Formato de título corrigido igual Torrentio
-    this.logger.debug('StreamFormatter ready'); // versão silenciosa
+    // Sem log de boot: evita ruído em cold start (serverless/Lambda).
   }
 
   public setResolveBaseUrl(baseUrl: string): void {

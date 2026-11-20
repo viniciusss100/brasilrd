@@ -31,7 +31,7 @@ export const TECHNICAL_ACRONYMS = [
   // Formatos de vídeo / encoding
   'matte', 'imax',
   // Idioma
-  'dublado', 'dublada', 'dual', 'legendado', 'legendada', 'nacional',
+  'dublado', 'dublada', 'dual', 'audio', 'legendado', 'legendada', 'legenda', 'nacional',
   'portugues', 'português', 'pt-br', 'ptbr', 'brazilian',
   // Sufixos de arquivo / sites / tags comuns de torrent
   'www', 'com', 'org', 'net', 'tv', 'br', 'bludv', 'comando', 'comandotorrents',
@@ -353,6 +353,16 @@ export function getPotentialSequelNumbers(title: string): number[] {
       const n = Number(token);
       if (n >= 2 && n <= 19) candidates.push(n);
     }
+  }
+
+  // Extrai ordinais em inglês (1st, 2nd, 3rd, 4th, 13th...) — usados em
+  // títulos de sequência como "Friday the 13th". O regex de números puros
+  // não casa "13th" porque o token não é 100% numérico.
+  for (const token of allTokens) {
+    const ordinal = token.match(/^(\d{1,2})(?:st|nd|rd|th)$/);
+    if (!ordinal) continue;
+    const n = Number(ordinal[1]);
+    if (n >= 2 && n <= 19) candidates.push(n);
   }
 
   // Extrai numeros romanos (I, II, III, IV...) do título original

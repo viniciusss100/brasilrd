@@ -398,7 +398,10 @@ export class ImdbScraperService {
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^\p{L}\p{N}\s]/gu, ' ')  // \p{L}=Unicode letters, preserva coreano/japonês/árabe etc
+      // \p{L}=Unicode letters (preserva coreano/japonês/árabe etc).
+      // Hífen é preservado porque faz parte estrutural do título ("9-1-1",
+      // "Spider-Man"); a comparação downstream normaliza sem ele.
+      .replace(/[^\p{L}\p{N}\s\-]/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }

@@ -57,12 +57,15 @@ export class StreamHandler {
   private readonly titleFilter: TitleFilter;
   private readonly catalogProvider: CatalogProvider;
 
-  // Seeds reais do Torbox (v1.6.2) — cache com TTL p/ não custar por request
-  private readonly seedsCache = new Map<string, { seeds: number; timestamp: number }>();
-  private readonly SEEDS_CACHE_TTL = 5 * 60 * 1000;
+  // Seeds reais do Torbox (v1.6.2) — cache com TTL diferenciado:
+  // sucesso fica 1h; resposta vazia (sem metadata) revalida em 5min.
+  // Erro de rede não é cacheado (null).
+  private readonly seedsCache = new Map<string, { seeds: number; timestamp: number; sucesso: boolean }>();
+  private readonly SEEDS_TTL_SUCESSO = 60 * 60 * 1000;
+  private readonly SEEDS_TTL_VAZIO = 5 * 60 * 1000;
   private readonly SEEDS_FETCH_CONCURRENCY = 8;
   private readonly SEEDS_FETCH_TIMEOUT_SEC = 3;
-  private readonly MAX_SEEDS_CACHE_SIZE = 2000;
+  private readonly MAX_SEEDS_CACHE_SIZE = 5000;
 
   // Estatísticas globais
   private stats = {
@@ -285,8 +288,11 @@ export class StreamHandler {
 
     for (const hash of hashes) {
       const cached = this.seedsCache.get(hash);
-      if (cached && (Date.now() - cached.timestamp) < this.SEEDS_CACHE_TTL) {
-        seedsByHash.set(hash, cached.seeds);
+      const ttl = cached?.sucesso ? this.SEEDS_TTL_SUCESSO : this.SEEDS_TTL_VAZIO;
+      if (cached && (Date.now() - cached.timestamp) < ttl) {
+        // 0 significa "Torbox não tem metadata", não "torrent sem seeds".
+        // Mantém o valor atual do banco em vez de zerar a exibição.
+        if (cached.seeds > 0) seedsByHash.set(hash, cached.seeds);
       } else {
         toFetch.push(hash);
       }
@@ -296,13 +302,23 @@ export class StreamHandler {
       const batch = toFetch.slice(i, i + this.SEEDS_FETCH_CONCURRENCY);
       const results = await Promise.all(
         batch.map(hash =>
-          this.torboxService.getTorrentInfoByHash(hash, apiKey, this.SEEDS_FETCH_TIMEOUT_SEC).catch(() => 0)
+          this.torboxService.getTorrentInfoByHash(hash, apiKey, this.SEEDS_FETCH_TIMEOUT_SEC)
+            .catch(() => null)
         )
       );
       for (let j = 0; j < batch.length; j++) {
-        const seeds = results[j] || 0;
-        seedsByHash.set(batch[j], seeds);
-        this.seedsCache.set(batch[j], { seeds, timestamp: Date.now() });
+        const seeds = results[j];
+        // null = erro de rede: não cacheia e mantém o seed atual do banco.
+        if (seeds === null || seeds === undefined) continue;
+
+        // Cacheia 0 com TTL curto para não martelar o Torbox, mas só aplica
+        // à exibição quando veio seed real (>0).
+        if (seeds > 0) seedsByHash.set(batch[j], seeds);
+        this.seedsCache.set(batch[j], {
+          seeds,
+          timestamp: Date.now(),
+          sucesso: seeds > 0,
+        });
       }
     }
 

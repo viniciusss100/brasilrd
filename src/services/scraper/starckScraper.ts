@@ -9,7 +9,7 @@ import { agenteHttps, lookupCustomizado } from './wordpressScraper.js';
 
 const logger = new Logger('StarckScraper');
 
-const STARCK_BASE = process.env.STARCK_BASE_URL?.trim() || 'https://starckfilmes-v26.com';
+const STARCK_BASE = process.env.STARCK_BASE_URL?.trim() || 'https://starckfilmes-v31.com';
 
 // ── Tipos ─────────────────────────────────────────────────────────────
 
@@ -42,6 +42,72 @@ interface SearchResultItem {
 interface StarckSearchResult {
   links: SearchResultItem[];
   directMagnets: StarckTorrent[];
+}
+
+// Base64 URL-safe → string UTF-8. Retorna null quando o payload é inválido.
+function decodeBase64Url(entrada: string): string | null {
+  let s = entrada.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4 !== 0) s += '=';
+  try {
+    return Buffer.from(s, 'base64').toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
+// O site passou a "embaralhar" o payload com um padrão determinístico
+// (passo 3) antes de mandar em base64url. Reverte exatamente o mesmo laço.
+function unshuffleString(entrada: string): string {
+  const n = entrada.length;
+  const resultado = new Array<string>(n);
+  const visitado = new Array<boolean>(n).fill(false);
+  let o = 0;
+
+  for (let t = 0; t < n; t++) {
+    while (visitado[o]) o = (o + 1) % n;
+    visitado[o] = true;
+    resultado[t] = entrada[o];
+    o = (o + 3) % n;
+  }
+
+  return resultado.join('');
+}
+
+// Links de download usam ?id= / ?xid= com magnet em base64url embaralhado.
+// Mantém fallback para base64 direto de posts antigos.
+function decodeLinkMagnets(html: string): StarckTorrent[] {
+  const results: StarckTorrent[] = [];
+  const seen = new Set<string>();
+  const $ = cheerio.load(html);
+
+  $('a[href]').each((_i, el) => {
+    const href = $(el).attr('href') || '';
+    const idMatch = href.match(/[?&](x?id)=([^&]+)/i);
+    if (!idMatch) return;
+
+    let valor: string;
+    try {
+      valor = decodeURIComponent(idMatch[2]);
+    } catch {
+      return;
+    }
+
+    let magnet = decodeBase64Url(unshuffleString(valor));
+    if (!magnet || !magnet.startsWith('magnet:?')) {
+      // Compatibilidade com o formato antigo (sem shuffle).
+      magnet = decodeBase64Url(valor);
+    }
+    if (!magnet || !magnet.startsWith('magnet:?')) return;
+
+    magnet = magnet.replace(/&amp;/gi, '&');
+    const hash = magnet.match(/btih:([a-fA-F0-9]{40})/i)?.[1]?.toLowerCase();
+    if (!hash || seen.has(hash)) return;
+
+    seen.add(hash);
+    results.push({ magnet, infoHash: hash });
+  });
+
+  return results;
 }
 
 function decodeDirectMagnets(html: string): StarckTorrent[] {
@@ -83,7 +149,10 @@ async function searchStarckLinks(query: string): Promise<StarckSearchResult> {
 
     return {
       links: results.slice(0, 40),
-      directMagnets: decodeDirectMagnets(res.data),
+      directMagnets: [
+        ...decodeDirectMagnets(res.data),
+        ...decodeLinkMagnets(res.data),
+      ],
     };
   } catch (err: any) {
     logger.warn('Starck busca falhou', { query: query.substring(0, 50), error: err.message });
@@ -153,7 +222,10 @@ export async function searchStarck(
         batch.map(async (item) => {
           try {
             const res = await axios.get(item.postUrl, axiosConfig);
-            return decodeBase64Magnets(res.data);
+            return [
+              ...decodeBase64Magnets(res.data),
+              ...decodeLinkMagnets(res.data),
+            ];
           } catch {
             return [];
           }
@@ -165,10 +237,19 @@ export async function searchStarck(
       }
     }
 
-    const duration = Date.now() - startTime;
-    logger.info(`Starck: ${allResults.length} magnets em ${duration}ms para "${query.substring(0, 50)}"`);
+    // Dedup global por infoHash — o mesmo magnet pode aparecer no direct,
+    // no base64 longo e no link ?id= da mesma página.
+    const seen = new Set<string>();
+    const unicos = allResults.filter(t => {
+      if (seen.has(t.infoHash)) return false;
+      seen.add(t.infoHash);
+      return true;
+    });
 
-    return allResults;
+    const duration = Date.now() - startTime;
+    logger.info(`Starck: ${unicos.length} magnets em ${duration}ms para "${query.substring(0, 50)}"`);
+
+    return unicos;
   } catch (err: any) {
     logger.error('Starck erro', { query: query.substring(0, 50), error: err.message });
     return [];

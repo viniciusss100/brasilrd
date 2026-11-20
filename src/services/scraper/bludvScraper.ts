@@ -1,6 +1,6 @@
 // Scraper dedicado do BLUDV — HTML scraping direto (sem WordPress API)
 // Extrai magnets, Áudio:, Qualidade:, Tamanho: e episódios do conteúdo do post
-// NOTA: o domínio migrou de bludvfilmes.xyz -> bludvfilmes1.xyz (o antigo faz 301).
+// NOTA: o domínio migrou de bludvfilmes1.xyz -> bludvfilmes2.xyz (o antigo faz 301).
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { Logger } from '../../utils/logger.js';
@@ -12,8 +12,42 @@ import { agenteHttps as dnsAgent, lookupCustomizado, requisicaoComFallback } fro
 
 const logger = new Logger('BludvScraper');
 
-const BASE_URL = process.env.BLUDV_BASE_URL?.trim() || 'https://bludvfilmes1.xyz';
+const BASE_URL = process.env.BLUDV_BASE_URL?.trim() || 'https://bludvfilmes2.xyz';
 const PROVIDER = 'BLUDV Filmes';
+
+// Negative cache local (mesmo padrão de WordPress/Starck): TTL 30min.
+// Só marca quando o site respondeu OK e não achou nada — erro de rede não marca.
+const BLUDV_NEGATIVE_TTL_MS = 30 * 60 * 1000;
+const BLUDV_NEGATIVE_MAX = 5000;
+const bludvNegativeStore = new Map<string, { ts: number; hits: number }>();
+
+function bludvNegativeKey(query: string, type: string): string {
+  return `bludv|${query.trim().toLowerCase()}|${type}`;
+}
+
+function bludvNegativeIsBlocked(key: string): boolean {
+  const entry = bludvNegativeStore.get(key);
+  if (!entry) return false;
+  if (Date.now() - entry.ts > BLUDV_NEGATIVE_TTL_MS) {
+    bludvNegativeStore.delete(key);
+    return false;
+  }
+  entry.hits++;
+  return true;
+}
+
+function bludvNegativeMark(key: string): void {
+  if (bludvNegativeStore.size >= BLUDV_NEGATIVE_MAX) {
+    const first = bludvNegativeStore.keys().next().value;
+    if (first) bludvNegativeStore.delete(first);
+  }
+  bludvNegativeStore.set(key, { ts: Date.now(), hits: 0 });
+}
+
+export function bludvNegativeClear(): void {
+  bludvNegativeStore.clear();
+}
+
 const AXIOS_OPTS = {
   timeout: 15000,
   httpsAgent: dnsAgent,
@@ -34,9 +68,19 @@ export class BludvScraper {
 
   async search(query: string, type: 'movie' | 'series' | 'anime'): Promise<TorrentResult[]> {
     try {
+      const ncKey = bludvNegativeKey(query, type);
+      if (bludvNegativeIsBlocked(ncKey)) {
+        logger.debug(`BLUDV: negative cache HIT | "${query.substring(0, 40)}"`);
+        return [];
+      }
+
       // Passo 1: Buscar posts na página de pesquisa HTML do WordPress
       const postUrls = await this.searchPosts(query);
-      if (!postUrls.length) return [];
+      if (!postUrls.length) {
+        bludvNegativeMark(ncKey);
+        logger.info(`BLUDV: 0 resultados, cacheado negativo | "${query.substring(0, 40)}" | ttlMs=${BLUDV_NEGATIVE_TTL_MS}`);
+        return [];
+      }
 
       logger.info(`BLUDV HTML: ${postUrls.length} posts encontrados para "${query}"`);
 
@@ -69,7 +113,7 @@ export class BludvScraper {
       const href = ($(el).attr('href') || '').trim();
       if (!href.includes('bludvfilmes')) return;
       
-      const path = href.replace(/^https?:\/\/bludvfilmes1?\.xyz/, '').replace(/\/$/, '');
+      const path = href.replace(/^https?:\/\/bludvfilmes\d*\.xyz/, '').replace(/\/$/, '');
       const segments = path.split('/').filter(Boolean);
       
       // Post: 1 segmento longo e descritivo com hífens

@@ -414,6 +414,17 @@ export async function searchHdrLinks(query: string, targetSeason?: number, media
 
     const collectionPage = blocks.find(b => b && b['@type'] === 'CollectionPage');
     if (!collectionPage) {
+      // O HDR às vezes devolve a home (WebSite + Organization) em vez da
+      // página de busca — comum com queries não-latinas, termos raros ou
+      // quando o WAF mascara a resposta. Home é "0 resultados", não falha:
+      // evita varrer links recentes da home e gerar falsos positivos.
+      const tipos = blocks.map(b => b?.['@type']).filter(Boolean);
+      const ehHome = tipos.length === 2 && tipos.includes('WebSite') && tipos.includes('Organization');
+      if (ehHome) {
+        logger.debug(`HDR: query rejeitada (home sem CollectionPage) | "${query.substring(0, 40)}"`);
+        return [];
+      }
+
       // Fallback: extrai links clássicos se JSON-LD ausente (layout antigo)
       const results: SearchResultItem[] = [];
       const seen = new Set<string>();
@@ -512,7 +523,10 @@ export async function extractMagnetsFromPost(
   const { blocks: jsonLdBlocks } = parseJsonLdBlocks($);
   const metadata = extractHdrMetadata($, jsonLdBlocks);
 
-  const tituloDoPost = metadata.originalTitle || metadata.originalTitleBruto;
+  // Ignora títulos que normalizam para vazio (cirílico/CJK em campos que o
+  // match downstream não consegue comparar) e cai para o próximo candidato.
+  const tituloDoPost = [metadata.originalTitle, metadata.originalTitleBruto]
+    .find(t => t && normalizarTexto(t).length > 0);
 
   const sectionHeaders: Array<{ pos: number; type: 'DUAL' | 'LEGENDADO' }> = [];
   $('h1, h2, h3, h4, h5, h6, strong, b').each((_i: number, el: any) => {
@@ -595,10 +609,19 @@ export async function extractMagnetsFromPost(
 
       const language = extractLanguage(raw.containerText) || metadata.language || extractLanguage(pageTitle);
 
-      const range =
-        detectSeasonRange(raw.containerText) ??
+      // O range do container pode ser só "Episódio 5" (season 0). Nesse caso
+      // NÃO deve sobrescrever a temporada do post/título da página — senão um
+      // episódio da S02 vira "S01E05". Só usa o range do container quando ele
+      // declara temporada; senão prioriza post/página e mantém o range curto
+      // como último recurso.
+      const rangeDoEpisodio = detectSeasonRange(raw.containerText);
+      const rangeDaTemporada =
         detectSeasonRange(postTitle) ??
         detectSeasonRange(pageTitle);
+      const range =
+        (rangeDoEpisodio && rangeDoEpisodio.season > 0 ? rangeDoEpisodio : null) ??
+        rangeDaTemporada ??
+        rangeDoEpisodio;
 
       const rangeEp = extrairRangeEpisodios(raw.containerText);
       let episodeStart = rangeEp?.episodeStart ?? undefined;

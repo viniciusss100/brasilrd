@@ -41,6 +41,16 @@ interface TorboxHashInfoResponse {
   success?: boolean;
 }
 
+/**
+ * Erro com metadados de classificação para o retry.
+ * O interceptor do axios transforma o AxiosError em Error simples, então a
+ * flag precisa viajar no próprio erro (não dá pra confiar no shape do AxiosError).
+ */
+interface TorboxClassifiedError extends Error {
+  nonRetryable?: boolean;
+  httpStatus?: number;
+}
+
 export class TorboxService {
   private static instance: TorboxService | null = null;
 
@@ -120,11 +130,19 @@ export class TorboxService {
           );
         }
 
+        // 401/403 são permanentes — não adianta gastar as 3 tentativas.
         if (status === 401 || status === 403) {
-          throw new Error('Torbox authentication failed: Invalid or expired API token');
+          const authErr = new Error('Torbox authentication failed: Invalid or expired API token') as TorboxClassifiedError;
+          authErr.nonRetryable = true;
+          authErr.httpStatus = status;
+          throw authErr;
         }
 
-        throw new Error(`Torbox API Error (${status}): ${errorMessage}`);
+        const genericErr = new Error(`Torbox API Error (${status}): ${errorMessage}`) as TorboxClassifiedError;
+        genericErr.httpStatus = status;
+        // Preserva a response original para quem for inspecionar o status.
+        (genericErr as any).response = error.response;
+        throw genericErr;
       }
     );
 
@@ -250,10 +268,13 @@ export class TorboxService {
 
   /**
    * Consulta os seeds REAIS de um torrent no Torbox (/torrents/torrentinfo).
-   * Nunca lança: em falha retorna 0 (v1.6.2 — antes os seeds eram inventados).
+   * Nunca lança. Retorna:
+   *   number > 0 → seeds reais
+   *   0          → Torbox respondeu OK mas sem metadata (vazio de verdade)
+   *   null       → erro de rede/timeout/entrada inválida (revalidar na próxima)
    */
-  async getTorrentInfoByHash(hash: string, apiKey: string, timeoutSec = 10): Promise<number> {
-    if (!hash || hash.length < 32) return 0;
+  async getTorrentInfoByHash(hash: string, apiKey: string, timeoutSec = 10): Promise<number | null> {
+    if (!hash || hash.length < 32) return null;
     const client = this.createHttpClient(apiKey);
     const startTime = Date.now();
     try {
@@ -277,12 +298,25 @@ export class TorboxService {
       });
       return seeds;
     } catch (error) {
-      this.logger.debug('getTorrentInfoByHash: falha silenciosa (retorna 0)', {
+      const httpStatus = (error as any)?.response?.status ?? (error as TorboxClassifiedError)?.httpStatus;
+      const durationMs = Date.now() - startTime;
+
+      // 500 = o Torbox respondeu, mas a metadata está indisponível agora.
+      // Trata como "vazio" (TTL curto) em vez de erro de rede.
+      if (httpStatus === 500) {
+        this.logger.debug('getTorrentInfoByHash: metadata indisponível (500)', {
+          hash: hash.substring(0, 16),
+          durationMs,
+        });
+        return 0;
+      }
+
+      this.logger.debug('getTorrentInfoByHash: erro de rede (retorna null)', {
         hash: hash.substring(0, 16),
         error: (error as Error).message,
-        durationMs: Date.now() - startTime,
+        durationMs,
       });
-      return 0;
+      return null;
     }
   }
 
@@ -709,6 +743,15 @@ export class TorboxService {
       } catch (error) {
         lastError = error as Error;
         if (error instanceof StreamStatusException) throw error;
+
+        // 401/403 marcados como nonRetryable → falha imediata, sem backoff.
+        if ((error as TorboxClassifiedError)?.nonRetryable) {
+          this.logger.debug(`retryableRequest: erro nonRetryable, abortando ${operation}`, {
+            error: lastError.message,
+          });
+          break;
+        }
+
         const axiosErr = error as AxiosError;
         if (this.isRetryableError(axiosErr) && attempt < this.maxRetries) {
           const delay = this.baseDelay * Math.pow(2, attempt - 1);
@@ -723,8 +766,10 @@ export class TorboxService {
   }
 
   private isRetryableError(error: AxiosError): boolean {
-    const status = error.response?.status;
-    return status ? [429, 500, 502, 503, 504].includes(status) : !error.response;
+    // Respeita a flag mesmo quando o erro foi reembalado pelo interceptor.
+    if ((error as any)?.nonRetryable) return false;
+    const status = error.response?.status ?? (error as TorboxClassifiedError)?.httpStatus;
+    return status ? [408, 429, 500, 502, 503, 504].includes(status) : !error.response;
   }
 
   private validateMagnetLink(link: string): void {
